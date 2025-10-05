@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { UserCreateZodSchema, UserOtpVerifySchema, UserProfileUpdateSchema } from './users.model';
+import { UserCreateZodSchema, UserLoginSchema, UserOtpVerifySchema, UserProfileUpdateSchema } from './users.model';
 import { successHandler, errorHandler } from '../../common/middlewares/responseHandler';
 import { parseError } from '../../common/utils/error.parser';
 import * as userService from './user.service';
@@ -35,9 +35,10 @@ export const verifyOtp = async (req: Request, res: Response) => {
 
 export const loginUser = async (req: Request, res: Response) => {
 	try {
-		const body = UserOtpVerifySchema.parse(req.body);
-		const { otp } = await userService.loginUserService(body.email, body.otp);
-		successHandler(res, 'Otp send successfully', { otp }, 200);
+		console.log(req.body);
+		const body = UserLoginSchema.parse(req.body);
+		const { token } = await userService.loginUserService(body.email, body.password);
+		successHandler(res, 'Login successful', { token }, 200);
 	} catch (error) {
 		const errorParser = parseError(error);
 		errorHandler(res, "Failed to login", errorParser.message, errorParser.statusCode);

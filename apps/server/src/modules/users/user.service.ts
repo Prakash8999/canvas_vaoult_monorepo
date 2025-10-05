@@ -79,7 +79,7 @@ export async function verifyOtpService(email: string, otp: string) {
   console.log("Stored OTP:", storedOtp, "Provided OTP:", otp);
   console.log("User ID:", user.dataValues.id, "Email:", user.dataValues.email);
   if (!storedOtp) {
-    const err: any = new Error('OTP expired or not found. We have sent you a new one.');
+    const err: any = new Error('OTP expired or not found. Please request a new one.');
     const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
     await redisClient.set(`user:otp:${user.dataValues.id}`, newOtp, { EX: 300 });
     await otpQueue.add('send-otp', { email: user.dataValues.email, otp: newOtp });
@@ -125,10 +125,14 @@ export async function loginUserService(email: string, otpOrPassword: string) {
     err.statusCode = 401;
     throw err;
   }
+    if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined in environment variables');
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  await redisClient.set(`user:otp:${user.dataValues.id}`, otp, { EX: 300 });
-  return { otp };
+  const token = jwt.sign(
+    { userId: user.dataValues.id, email: user.dataValues.email },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h', issuer: 'canvas-backend', audience: 'canvas-users' }
+  );
+  return { token };
 }
 
 export async function getUserProfileService(userId: number) {

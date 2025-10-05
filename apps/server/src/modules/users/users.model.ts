@@ -123,6 +123,10 @@ export const UserOtpVerifySchema = z.object({
 	email: z.email().max(100),
 	otp: z.string().length(6),
 }).strict();
+export const UserLoginSchema = z.object({
+	email: z.email().max(100),
+	password: z.string().max(255),
+}).strict();
 
 // Only allow updating a subset of fields. Use `pick` to avoid attempting to omit
 // properties that were already removed earlier (which throws in Zod).
