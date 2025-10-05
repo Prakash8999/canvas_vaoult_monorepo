@@ -9,7 +9,7 @@ const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 const app = express();
 app.use(express.json());
 dotenv.config();
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: ['http://localhost:8080'] , methods: ['GET', 'POST', 'PATCH', 'DELETE'], credentials: true }));
 
 
 
