@@ -6,7 +6,7 @@ if (!process.env.PSQL_URI) {
 
 const sequelize = new Sequelize(process.env.PSQL_URI, {
 	dialect: "postgres",
-	logging: false,
+	logging: true,
 });
 
 

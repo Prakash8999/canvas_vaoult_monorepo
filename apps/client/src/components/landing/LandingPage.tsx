@@ -7,6 +7,7 @@ import { LandingHeader } from './LandingHeader';
 import { AuthModals } from './AuthModals';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/stores/authStore';
 
 export function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -63,6 +64,15 @@ export function LandingPage() {
     }
   ];
 
+  const token = useAuthStore(state => state.token);
+  const handleRedirect = () => {
+    if (token) {
+      navigate('/dashboard');
+    } else {
+      openAuth('signup');
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <LandingHeader onSignIn={() => openAuth('signin')} onSignUp={() => openAuth('signup')} />
@@ -97,7 +107,7 @@ export function LandingPage() {
                 <Button 
                   size="lg" 
                   className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg text-lg px-8"
-                  onClick={() => navigate('/dashboard')}
+                  onClick={handleRedirect}
                 >
                   Get Started Free
                   <ArrowRight className="ml-2 h-5 w-5" />

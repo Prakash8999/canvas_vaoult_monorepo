@@ -40,6 +40,7 @@ export const loginUser = async (req: Request, res: Response) => {
 		const { token } = await userService.loginUserService(body.email, body.password);
 		successHandler(res, 'Login successful', { token }, 200);
 	} catch (error) {
+		console.log(error);
 		const errorParser = parseError(error);
 		errorHandler(res, "Failed to login", errorParser.message, errorParser.statusCode);
 	}

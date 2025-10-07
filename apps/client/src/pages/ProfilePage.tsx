@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -35,8 +35,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import axios from 'axios';
 
 interface ProfileData {
   name: string;
@@ -54,33 +56,114 @@ interface ProfileData {
 export default function ProfilePage() {
   const navigate = useNavigate();
   const sidebarOpen = useWorkspaceStore(state => state.sidebarOpen);
+  const token = useAuthStore(state => state.token);
+  const clearToken = useAuthStore(state => state.clearToken);
   
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData>({
-    name: 'Alex Johnson',
-    email: 'alex@example.com',
-    bio: 'Passionate knowledge worker and creative thinker. I love organizing ideas and building beautiful digital experiences.',
-    title: 'Product Designer',
-    location: 'San Francisco, CA',
-    website: 'https://alexjohnson.dev',
-    github: 'alexjohnson',
-    twitter: '@alexjohnson',
-    joinedDate: '2024-01-15',
+    name: '',
+    email: '',
+    bio: '',
+    title: '',
+    location: '',
+    website: '',
+    github: '',
+    twitter: '',
+    joinedDate: '',
     avatar: ''
   });
   
   const [editData, setEditData] = useState(profileData);
+
+  // Fetch user profile on component mount
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (!token) {
+        navigate('/');
+        return;
+      }
+
+      try {
+        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/api/v1/user`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const userData = response.data.data;
+        setProfileData({
+          name: userData.name ,
+          email: userData.email,
+          bio: userData.bio || '',
+          title: userData.title || '',
+          location: userData.location || '',
+          website: userData.website || '',
+          github: userData.github || '',
+          twitter: userData.twitter || '',
+          joinedDate: userData.created_at ? new Date(userData.created_at).toISOString().split('T')[0] : '',
+          avatar: userData.profile_url || ''
+        });
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+        toast.error('Failed to load profile data');
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          clearToken();
+          navigate('/');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserProfile();
+  }, [token, navigate, clearToken]);
 
   const handleEdit = () => {
     setEditData(profileData);
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    setProfileData(editData);
-    setIsEditing(false);
-    toast.success('Profile updated successfully');
+  const handleSave = async () => {
+    try {
+      // Prepare the data to update (only changed fields)
+      const updateData: Partial<ProfileData> = {};
+      
+      if (editData.name !== profileData.name) updateData.name = editData.name;
+      if (editData.bio !== profileData.bio) updateData.bio = editData.bio;
+      if (editData.title !== profileData.title) updateData.title = editData.title;
+      if (editData.location !== profileData.location) updateData.location = editData.location;
+      if (editData.website !== profileData.website) updateData.website = editData.website;
+      if (editData.github !== profileData.github) updateData.github = editData.github;
+      if (editData.twitter !== profileData.twitter) updateData.twitter = editData.twitter;
+
+      if (Object.keys(updateData).length > 0) {
+        await axios.patch(`${import.meta.env.VITE_BASE_URL}/api/v1/user`, updateData, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // Update local state with the new data
+        setProfileData(editData);
+        toast.success('Profile updated successfully');
+      } else {
+        // No changes made
+        setProfileData(editData);
+        toast.info('No changes to save');
+      }
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      toast.error('Failed to update profile');
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        clearToken();
+        navigate('/');
+      }
+    } finally {
+      setIsEditing(false);
+    }
   };
 
   const handleCancel = () => {
@@ -89,6 +172,7 @@ export default function ProfilePage() {
   };
 
   const handleLogout = () => {
+    clearToken();
     toast.success('Logged out successfully');
     navigate('/');
   };
@@ -114,12 +198,20 @@ export default function ProfilePage() {
       <div className="flex-1 flex overflow-hidden">
         <Sidebar />
         <main className="flex-1 overflow-auto" style={{ paddingRight: sidebarOpen ? undefined : 0 }}>
-          <motion.div 
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="max-w-4xl mx-auto p-8 space-y-8"
-          >
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Loading profile...</p>
+              </div>
+            </div>
+          ) : (
+            <motion.div 
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="max-w-4xl mx-auto p-8 space-y-8"
+            >
             {/* Header */}
             <motion.div variants={itemVariants} className="space-y-4">
               <div className="flex items-center justify-between">
@@ -416,7 +508,8 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
             </motion.div>
-          </motion.div>
+            </motion.div>
+          )}
         </main>
       </div>
       <AiDrawer />

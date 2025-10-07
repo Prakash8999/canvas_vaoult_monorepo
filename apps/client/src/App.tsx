@@ -15,6 +15,8 @@ import { WorkspaceLayout } from "@/components/workspace/WorkspaceLayout";
 import QuickCapture from '@/components/quick/QuickCapture';
 import { useEffect } from 'react';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/ProtectedRoute';
+import { AuthProvider } from '@/components/auth/AuthProvider';
 
 const queryClient = new QueryClient();
 
@@ -36,26 +38,28 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/dashboard" element={<WorkspaceLayout />} />
-            <Route path="/canvas" element={<CanvasPage />} />
-            <Route path="/canvas/:id" element={<CanvasPage />} />
-            <Route path="/canvases" element={<CanvasListPage />} />
-            <Route path="/notes" element={<NotesListPage />} />
-            <Route path="/note/:id" element={<NoteEditorPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            {/* <Route path="/note" element={<NoteEditorPage />} /> */}
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-        {/* Mount QuickCapture at the app root so it can appear on any page */}
-        <QuickCapture />
+        <AuthProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/dashboard" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>} />
+              <Route path="/canvas" element={<ProtectedRoute><CanvasPage /></ProtectedRoute>} />
+              <Route path="/canvas/:id" element={<ProtectedRoute><CanvasPage /></ProtectedRoute>} />
+              <Route path="/canvases" element={<ProtectedRoute><CanvasListPage /></ProtectedRoute>} />
+              <Route path="/notes" element={<ProtectedRoute><NotesListPage /></ProtectedRoute>} />
+              <Route path="/note/:id" element={<ProtectedRoute><NoteEditorPage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              {/* <Route path="/note" element={<ProtectedRoute><NoteEditorPage /></ProtectedRoute>} /> */}
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+          {/* Mount QuickCapture at the app root so it can appear on any page */}
+          <QuickCapture />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

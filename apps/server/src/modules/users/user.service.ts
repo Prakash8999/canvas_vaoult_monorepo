@@ -138,7 +138,7 @@ export async function loginUserService(email: string, otpOrPassword: string) {
 export async function getUserProfileService(userId: number) {
   const user = await User.findOne({
     where: { id: userId, block: false },
-    attributes: ['id', 'email', 'name', 'is_email_verified', 'profile_url', 'created_at', 'updated_at'],
+    attributes: ['id', 'email', 'name', 'is_email_verified', 'profile_url', 'created_at', 'updated_at', 'bio', 'location', 'website', 'github', 'twitter'],
   });
   if (!user) {
     const err: any = new Error('User not found');
