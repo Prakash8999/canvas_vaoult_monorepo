@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CanvasVault Design System - Local-first workspace with beautiful typography and colors */
+
+@layer base {
+  :root {
+    /* Brand Colors - Enhanced purple palette with gradients */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    
+    --card: 240 10% 5.9%;
+    --card-foreground: 0 0% 98%;
+    
+    --popover: 240 10% 5.9%;
+    --popover-foreground: 0 0% 98%;
+    
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 98%;
+    --primary-glow: 262 83% 68%;
+    --primary-subtle: 262 83% 58% / 0.1;
+    
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 98%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 262 83% 58%;
+    
+    --radius: 0.75rem;
+    
+    /* Workspace-specific colors */
+    --workspace-bg: 240 10% 3.9%;
+    --workspace-panel: 240 10% 5.9%;
+    --workspace-border: 240 5.9% 20%;
+    --workspace-hover: 240 3.7% 15.9%;
+    --workspace-accent: 262 83% 58% / 0.15;
+    
+    /* Editor colors */
+    --editor-bg: 240 10% 5.9%;
+    --editor-focus: 262 83% 58%;
+    --editor-selection: 262 83% 58% / 0.2;
+    
+    /* Canvas colors */
+    --canvas-bg: 0 0% 100%;
+    --canvas-grid: 0 0% 90%;
+    --canvas-selection: 262 83% 58%;
+    
+    /* AI Assistant colors */
+    --ai-gradient-start: 262 83% 58%;
+    --ai-gradient-end: 292 84% 61%;
+    --ai-thinking: 262 83% 58% / 0.1;
+    
+    /* Sidebar colors */
+    --sidebar-background: 240 10% 5.9%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 240 5.9% 20%;
+    --sidebar-ring: 262 83% 58%;
+    
+    /* Status colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
+    --warning: 48 96% 53%;
+    --warning-foreground: 240 10% 3.9%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 98%;
+    
+    /* Shadows and glows */
+    --shadow-primary: 262 83% 58% / 0.25;
+    --shadow-lg: 240 10% 3.9% / 0.5;
+    --glow-primary: 262 83% 58% / 0.4;
+    --shadow-elegant: 0 10px 30px -10px hsl(262 83% 58% / 0.3);
+    --shadow-soft: 0 4px 20px -4px hsl(240 10% 3.9% / 0.4);
+    
+    /* Typography */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', monaco, 'Cascadia Code', consolas, monospace;
+    
+    /* Animations */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-medium: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+  
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 98%;
+    --primary-glow: 262 83% 68%;
+    
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 262 83% 58%;
+    
+    /* Workspace-specific colors for light mode */
+    --workspace-bg: 0 0% 100%;
+    --workspace-panel: 240 4.8% 95.9%;
+    --workspace-border: 240 5.9% 90%;
+    --workspace-hover: 240 4.8% 95.9%;
+    
+    --editor-bg: 0 0% 100%;
+    --editor-selection: 262 83% 58% / 0.15;
+    
+    --canvas-bg: 0 0% 100%;
+    --canvas-grid: 240 5.9% 90%;
+    
+    --ai-thinking: 262 83% 58% / 0.05;
+    
+    --sidebar-background: 240 4.8% 95.9%;
+    --sidebar-foreground: 240 5.9% 10%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 240 5.9% 90%;
+    
+    --shadow-lg: 240 10% 3.9% / 0.1;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-workspace-bg text-foreground font-sans;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbars */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-workspace-bg;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-workspace-border rounded-full;
+    transition: background-color 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-primary/60;
+  }
+
+  /* Focus styles */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+  }
+
+  /* Editor.js container focus style - remove default focus outline */
+  .editorjs-holder:focus,
+  .editorjs-holder:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    --tw-ring-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Selection styles */
+  ::selection {
+    @apply bg-editor-selection;
+  }
+
+  /* Enhanced hover and focus states */
+  .glass-effect {
+    backdrop-filter: blur(12px);
+    background: hsl(var(--workspace-panel) / 0.8);
+    border: 1px solid hsl(var(--workspace-border) / 0.5);
+  }
+
+  .glow-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .glow-hover:hover {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+    transform: translateY(-1px);
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

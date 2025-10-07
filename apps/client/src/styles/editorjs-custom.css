@@ -1,0 +1,275 @@
+/* EditorJS Custom Styles for Left-Aligned Toolbar */
+
+/* Left-align the toolbar */
+.editorjs-toolbar-left .ce-toolbar {
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* Left-align the plus button */
+.editorjs-toolbar-left .ce-toolbar__plus {
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* Left-align the settings button */
+.editorjs-toolbar-left .ce-toolbar__settings-btn {
+  left: 30px !important;
+  right: auto !important;
+}
+
+/* Left-align the toolbox */
+.editorjs-toolbar-left .ce-toolbox {
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* Left-align the inline toolbar */
+.editorjs-toolbar-left .ce-inline-toolbar {
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* Remove default borders and add clean styling */
+.editor-js-container {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.editor-js-container .codex-editor {
+  border: none !important;
+}
+
+.editor-js-container .ce-block__content {
+  max-width: none !important;
+}
+
+/* Clean up the editor appearance */
+.editor-js-container .ce-toolbar__plus:hover,
+.editor-js-container .ce-toolbar__settings-btn:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Enhanced Editor Styles */
+.enhanced-editor {
+  position: relative;
+}
+
+/* Wiki Link Styles */
+.wiki-link {
+  display: inline-block;
+  padding: 2px 6px;
+  margin: 0 2px;
+  background-color: rgb(219, 234, 254); /* bg-blue-100 */
+  color: rgb(29, 78, 216); /* text-blue-700 */
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  position: relative;
+  z-index: 1;
+}
+
+.wiki-link:hover {
+  background-color: rgb(191, 219, 254); /* bg-blue-200 */
+}
+
+.wiki-link:active {
+  background-color: rgb(147, 197, 253); /* bg-blue-300 */
+}
+
+/* Ensure wiki links are clickable */
+.wiki-link * {
+  pointer-events: none;
+}
+
+/* Search Highlight Styles */
+.search-highlight {
+  background-color: rgb(254, 240, 138) !important; /* bg-yellow-200 */
+  padding: 1px 2px !important;
+  border-radius: 2px !important;
+}
+
+/* Runnable Code Block Styles */
+.runnable-code-block {
+  border: 1px solid rgb(229, 231, 235); /* border-gray-200 */
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: rgb(249, 250, 251); /* bg-gray-50 */
+  margin: 16px 0;
+}
+
+.runnable-code-block textarea {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  background: white;
+  border: none;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.runnable-code-block textarea:focus {
+  outline: none;
+}
+
+/* Chart Block Styles */
+.chart-block {
+  border: 1px solid rgb(229, 231, 235); /* border-gray-200 */
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  margin: 16px 0;
+}
+
+.chart-block textarea {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  background: white;
+  border: none;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.chart-block svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Tag Styles */
+.tag-link {
+  display: inline;
+  color: rgb(37, 99, 235); /* text-blue-600 */
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tag-link:hover {
+  color: rgb(29, 78, 216); /* text-blue-700 */
+  text-decoration: underline;
+}
+
+/* Toolbar Enhancements */
+.enhanced-editor .ce-toolbar__plus {
+  background: white;
+  border: 1px solid rgb(229, 231, 235);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.enhanced-editor .ce-toolbar__settings-btn {
+  background: white;
+  border: 1px solid rgb(229, 231, 235);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus states */
+.enhanced-editor .ce-block--focused {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* Selection styles */
+.enhanced-editor ::selection {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+
+/* Style the toolbox */
+.editorjs-toolbar-left .ce-toolbox {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  z-index: 999 !important;
+  overflow: visible !important;
+}
+
+/* Fix toolbox positioning and visibility */
+.ce-toolbox {
+  z-index: 999 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  overflow: visible !important;
+  max-height: none !important;
+}
+
+/* Ensure toolbox items are fully visible */
+.ce-toolbox__button {
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  white-space: nowrap !important;
+}
+
+/* Fix container overflow issues that might clip the toolbox */
+.editor-js-container,
+.editorjs-holder {
+  overflow: visible !important;
+}
+
+/* Ensure proper spacing and visibility for toolbar elements */
+.ce-toolbar__plus {
+  z-index: 100 !important;
+}
+
+.ce-toolbar__settings-btn {
+  z-index: 100 !important;
+}
+
+/* Fix any parent containers that might be clipping */
+.enhanced-editor,
+.enhanced-editor * {
+  overflow: visible !important;
+}
+
+/* Make sure toolbox appears above everything */
+.ce-popover {
+  z-index: 1000 !important;
+}
+
+.ce-popover--opened {
+  z-index: 1000 !important;
+}
+
+/* Remove default focus styles and add Notion-like highlight */
+.ce-block:focus,
+.ce-block:focus-visible,
+.ce-block--focused,
+.ce-block__content:focus,
+.ce-block__content:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Notion-like subtle gray highlight on block focus/hover */
+.ce-block--focused,
+.ce-block:hover {
+  background-color: rgba(55, 53, 47, 0.03) !important;
+  border-radius: 3px !important;
+  transition: background-color 0.15s ease !important;
+}
+
+/* Ensure the content area doesn't have focus outline */
+.ce-block__content {
+  outline: none !important;
+}
+
+/* Remove any ring or focus styles from input elements within blocks */
+.ce-block input:focus,
+.ce-block textarea:focus,
+.ce-block [contenteditable]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: rgba(55, 53, 47, 0.16) !important;
+}
+
+/* Style for when block is being edited */
+.ce-block--selected {
+  background-color: rgba(55, 53, 47, 0.06) !important;
+  border-radius: 3px !important;
+}

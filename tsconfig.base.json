@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "composite": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,
@@ -7,6 +8,10 @@
     "isolatedModules": true,
     "lib": ["es2022"],
     "module": "esnext",
+    "paths": {
+      "@server/*": ["server/src/*"],
+      "@client/*": ["apps/client/src/*"]
+    },
     "moduleResolution": "bundler",
     "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,

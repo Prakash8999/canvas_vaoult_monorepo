@@ -1,0 +1,43 @@
+{
+  "name": "@monorepo/client",
+  "projectType": "application",
+  "sourceRoot": "apps/client/src",
+  "targets": {
+    "serve": {
+      "executor": "@nx/vite:dev-server",
+      "options": {
+        "buildTarget": "@monorepo/client:build",
+        "configFile": "apps/client/vite.config.ts"
+      },
+      "configurations": {
+        "development": {
+          "buildTarget": "@monorepo/client:build",
+          "mode": "development"
+        },
+        "production": {
+          "buildTarget": "@monorepo/client:build:production",
+          "mode": "production"
+        }
+      }
+    },
+    "build": {
+      "executor": "@nx/vite:build",
+      "options": {
+        "configFile": "apps/client/vite.config.ts",
+        "outputPath": "dist/apps/client"
+      },
+      "configurations": {
+        "production": {
+          "mode": "production"
+        }
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["apps/client/src/**/*.ts", "apps/client/src/**/*.tsx"]
+      }
+    }
+  },
+  "tags": []
+}
