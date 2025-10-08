@@ -1,20 +1,11 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { z } from 'zod';
-import { User, UserCreateZodSchema } from './users.model';
+import { User, UserCreationAttributes } from './users.model';
 import redisClient from '../../config/redis';
 import { otpQueue } from '../../jobs/producer';
 
-// Use the model's creation schema type to avoid duplication. Keep the minimal
-// required fields compatible with existing controller callers.
-export type CreateUserBody = Partial<z.infer<typeof UserCreateZodSchema>> & {
-  name: string;
-  email: string;
-  password: string;
-  profile_url?: string | null;
-};
 
-export async function createUserService(body: CreateUserBody) {
+export async function createUserService(body: UserCreationAttributes) {
   if (!User || !User.sequelize) throw new Error('Database not initialized');
 
   const existing = await User.count({ where: { email: body.email } });
@@ -166,6 +157,6 @@ export async function blockUserService(userId: number) {
     err.statusCode = 404;
     throw err;
   }
-  await User.update({ block: true, blocked_at: new Date() }, { where: { id: userId } });
+  await User.update({ block: true, blocked_on: new Date() }, { where: { id: userId } });
   return {};
 }

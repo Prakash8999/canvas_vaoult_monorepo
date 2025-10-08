@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -39,6 +39,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import axios from 'axios';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface ProfileData {
   name: string;
@@ -59,7 +60,7 @@ export default function ProfilePage() {
   const token = useAuthStore(state => state.token);
   const clearToken = useAuthStore(state => state.clearToken);
   
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -77,93 +78,102 @@ export default function ProfilePage() {
   
   const [editData, setEditData] = useState(profileData);
 
-  // Fetch user profile on component mount
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!token) {
-        navigate('/');
-        return;
-      }
-
-      try {
-        const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/api/v1/user`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        const userData = response.data.data;
-        setProfileData({
-          name: userData.name ,
-          email: userData.email,
-          bio: userData.bio || '',
-          title: userData.title || '',
-          location: userData.location || '',
-          website: userData.website || '',
-          github: userData.github || '',
-          twitter: userData.twitter || '',
-          joinedDate: userData.created_at ? new Date(userData.created_at).toISOString().split('T')[0] : '',
-          avatar: userData.profile_url || ''
-        });
-      } catch (error) {
-        console.error('Failed to fetch user profile:', error);
-        toast.error('Failed to load profile data');
-        if (axios.isAxiosError(error) && error.response?.status === 401) {
-          clearToken();
-          navigate('/');
+  // Fetch user profile using react-query
+  const {
+    data: userProfileData,
+    isLoading,
+    isError,
+    error,
+    refetch
+  } = useQuery<ProfileData, Error, ProfileData, [string, string]>({
+    queryKey: ['user-profile', token],
+    queryFn: async () => {
+      if (!token) throw new Error('No token');
+      const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/api/v1/user`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      });
+      const d = response.data.data;
+      return {
+        name: d.name,
+        email: d.email,
+        bio: d.bio || '',
+        title: d.title || '',
+        location: d.location || '',
+        website: d.website || '',
+        github: d.github || '',
+        twitter: d.twitter || '',
+        joinedDate: d.created_at ? new Date(d.created_at).toISOString().split('T')[0] : '',
+        avatar: d.profile_url || ''
+      };
+    },
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000 // 5 minutes
+  });
 
-    fetchUserProfile();
-  }, [token, navigate, clearToken]);
+  React.useEffect(() => {
+    if (isError && error) {
+      toast.error('Failed to load profile data');
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        clearToken();
+        navigate('/');
+      }
+    }
+  }, [isError, error, clearToken, navigate]);
+
+  React.useEffect(() => {
+    if (userProfileData) {
+      setProfileData(userProfileData as ProfileData);
+    }
+  }, [userProfileData]);
 
   const handleEdit = () => {
     setEditData(profileData);
     setIsEditing(true);
   };
 
-  const handleSave = async () => {
-    try {
-      // Prepare the data to update (only changed fields)
-      const updateData: Partial<ProfileData> = {};
-      
-      if (editData.name !== profileData.name) updateData.name = editData.name;
-      if (editData.bio !== profileData.bio) updateData.bio = editData.bio;
-      if (editData.title !== profileData.title) updateData.title = editData.title;
-      if (editData.location !== profileData.location) updateData.location = editData.location;
-      if (editData.website !== profileData.website) updateData.website = editData.website;
-      if (editData.github !== profileData.github) updateData.github = editData.github;
-      if (editData.twitter !== profileData.twitter) updateData.twitter = editData.twitter;
-
-      if (Object.keys(updateData).length > 0) {
-        await axios.patch(`${import.meta.env.VITE_BASE_URL}/api/v1/user`, updateData, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        // Update local state with the new data
-        setProfileData(editData);
-        toast.success('Profile updated successfully');
-      } else {
-        // No changes made
-        setProfileData(editData);
-        toast.info('No changes to save');
-      }
-    } catch (error) {
-      console.error('Failed to update profile:', error);
+  const updateProfileMutation = useMutation({
+    mutationFn: async (updateData: Partial<ProfileData>) => {
+      return axios.patch(`${import.meta.env.VITE_BASE_URL}/api/v1/user`, updateData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    },
+    onSuccess: () => {
+      toast.success('Profile updated successfully');
+      refetch();
+    },
+    onError: (error: any) => {
       toast.error('Failed to update profile');
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         clearToken();
         navigate('/');
       }
-    } finally {
-      setIsEditing(false);
+    },
+  });
+
+  const handleSave = async () => {
+    // Prepare the data to update (only changed fields)
+    const updateData: Partial<ProfileData> = {};
+    if (editData.name !== profileData.name) updateData.name = editData.name;
+    if (editData.bio !== profileData.bio) updateData.bio = editData.bio;
+    if (editData.title !== profileData.title) updateData.title = editData.title;
+    if (editData.location !== profileData.location) updateData.location = editData.location;
+    if (editData.website !== profileData.website) updateData.website = editData.website;
+    if (editData.github !== profileData.github) updateData.github = editData.github;
+    if (editData.twitter !== profileData.twitter) updateData.twitter = editData.twitter;
+
+    if (Object.keys(updateData).length > 0) {
+      await updateProfileMutation.mutateAsync(updateData);
+      setProfileData(editData);
+    } else {
+      setProfileData(editData);
+      toast.info('No changes to save');
     }
+    setIsEditing(false);
   };
 
   const handleCancel = () => {
@@ -203,6 +213,12 @@ export default function ProfilePage() {
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                 <p className="text-muted-foreground">Loading profile...</p>
+              </div>
+            </div>
+          ) : isError ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <p className="text-destructive">Failed to load profile.</p>
               </div>
             </div>
           ) : (

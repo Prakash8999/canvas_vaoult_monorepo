@@ -17,6 +17,7 @@ import { useEffect } from 'react';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/ProtectedRoute';
 import { AuthProvider } from '@/components/auth/AuthProvider';
+import { CommandPalette } from '@/components/ui/command-palette';
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => {
           </BrowserRouter>
           {/* Mount QuickCapture at the app root so it can appear on any page */}
           <QuickCapture />
+          <CommandPalette />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

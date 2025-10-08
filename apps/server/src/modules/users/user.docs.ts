@@ -1,18 +1,18 @@
 import { OpenApiGeneratorV3, OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
 import {
-	UserCreateZodSchema,
-	UserZodSchema,
+	CreateUserSchema,
+	UserSchema,
 	UserOtpVerifySchema,
-	UserProfileUpdateSchema,
+	UpdateUserSchema,
 } from "./users.model";
 import { z } from 'zod';
 
 
 export const registry = new OpenAPIRegistry();
 // Core models
-registry.register('User', UserZodSchema);
-registry.register('UserCreate', UserCreateZodSchema);
-registry.register('UserProfileUpdate', UserProfileUpdateSchema);
+registry.register('User', UserSchema);
+registry.register('UserCreate', CreateUserSchema);
+registry.register('UserProfileUpdate', UpdateUserSchema);
 registry.register('UserOtpVerify', UserOtpVerifySchema);
 
 // Login schema (email + password)
@@ -35,7 +35,7 @@ registry.registerPath({
 	request: {
 		body: {
 			content: {
-				'application/json': { schema: UserCreateZodSchema },
+				'application/json': { schema: CreateUserSchema },
 			},
 		},
 	},
@@ -43,7 +43,7 @@ registry.registerPath({
 		201: {
 			description: 'User created successfully',
 			content: {
-				'application/json': { schema: UserZodSchema },
+				'application/json': { schema: UserSchema },
 			},
 		},
 		400: { description: 'Invalid request' },
@@ -110,7 +110,7 @@ registry.registerPath({
 		200: {
 			description: 'User profile',
 			content: {
-				'application/json': { schema: UserZodSchema },
+				'application/json': { schema: UserSchema },
 			},
 		},
 		401: { description: 'Unauthorized' },
@@ -127,7 +127,7 @@ registry.registerPath({
 	request: {
 		body: {
 			content: {
-				'application/json': { schema: UserProfileUpdateSchema },
+				'application/json': { schema: UpdateUserSchema },
 			},
 		},
 	},
@@ -135,7 +135,7 @@ registry.registerPath({
 		200: {
 			description: 'Updated user profile',
 			content: {
-				'application/json': { schema: UserZodSchema },
+				'application/json': { schema: UserSchema },
 			},
 		},
 		400: { description: 'Invalid request' },

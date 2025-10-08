@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { UserCreateZodSchema, UserLoginSchema, UserOtpVerifySchema, UserProfileUpdateSchema } from './users.model';
+import { CreateUserSchema, UserLoginSchema, UserOtpVerifySchema, UpdateUserSchema } from './users.model';
 import { successHandler, errorHandler } from '../../common/middlewares/responseHandler';
 import { parseError } from '../../common/utils/error.parser';
 import * as userService from './user.service';
@@ -8,7 +8,7 @@ import * as userService from './user.service';
 export const addUser = async (req: Request, res: Response) => {
 	try {
 		
-		const body = UserCreateZodSchema.parse(req.body);
+		const body = CreateUserSchema.parse(req.body);
 		const { user, otp } = await userService.createUserService(body);
 		successHandler(res, 'User created successfully', { id: user.dataValues.id, otp }, 201);
 	} catch (error) {
@@ -77,7 +77,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 			errorHandler(res, 'Invalid user id', {}, 400);
 			return;
 		}
-		const body = UserProfileUpdateSchema.parse(req.body);
+		const body = UpdateUserSchema.parse(req.body);
 		await userService.updateUserProfileService(userId, body as any);
 		successHandler(res, 'User profile updated successfully', {}, 200);
 	} catch (error) {

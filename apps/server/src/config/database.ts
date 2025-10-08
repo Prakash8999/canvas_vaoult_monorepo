@@ -10,7 +10,7 @@ const sequelize = new Sequelize(process.env.PSQL_URI, {
 });
 
 
-const syncDb = { force: false, alter: false };
+const syncDb = { force: false, alter: true };
 
 sequelize.sync(syncDb).then(() => {
 	console.log("DB connected");
