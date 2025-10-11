@@ -1,6 +1,6 @@
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
-import { userOpenApiDoc } from './modules/users/user.docs';
+import { combinedOpenApiDoc } from './common/docs';
 import cors from 'cors';
 import dotenv from 'dotenv';
 const host = process.env.HOST ?? 'localhost';
@@ -17,6 +17,7 @@ app.use(cors({ origin: ['http://localhost:8080'] , methods: ['GET', 'POST', 'PAT
 
 // Import routes
 import userRoutes from './modules/users/user.route';
+import assetRoutes from './modules/assets/asset.route';
 
 // Use routes
 
@@ -44,10 +45,11 @@ initApp();
 app.get('/', (req, res) => {
   res.send({ message: 'Hello API from user service' });
 });
-app.use('/api-docs', ...swaggerUi.serve, swaggerUi.setup(userOpenApiDoc));
+app.use('/api-docs', ...swaggerUi.serve, swaggerUi.setup(combinedOpenApiDoc));
 
 const apiV1 = '/api/v1'
 app.use(`${apiV1}/user`, userRoutes);
+app.use(`${apiV1}/assets`, assetRoutes);
 
 app.listen(port, host, () => {
   console.log(`[ ready ] http://${host}:${port}`);

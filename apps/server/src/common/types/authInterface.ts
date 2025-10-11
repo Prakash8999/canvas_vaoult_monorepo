@@ -1,6 +1,6 @@
 
 export interface AuthenticatedUser {
-  userId: string;
+  userId: number;
   email: string;
   isEmailVerified: boolean;
   name?: string;

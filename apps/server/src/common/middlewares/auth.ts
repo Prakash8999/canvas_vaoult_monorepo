@@ -36,7 +36,7 @@ const extractToken = (req: Request): string | null => {
 };
 
 // Helper function to get user from cache or database
-const getUserById = async (userId: string): Promise<any | null> => {
+const getUserById = async (userId: number): Promise<any | null> => {
 	
 
 	try {
@@ -160,7 +160,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 		if (!userData) {
 			authLogger.log({
 				action: 'USER_NOT_FOUND',
-				userId: decoded.userId,
+				userId: decoded.userId.toString(),
 				email: decoded.email,
 				ip: clientIP,
 				userAgent,
@@ -176,7 +176,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 		if (userData.email !== decoded.email) {
 			authLogger.log({
 				action: 'TOKEN_INVALID',
-				userId: decoded.userId,
+				userId: decoded.userId.toString(),
 				email: decoded.email,
 				ip: clientIP,
 				userAgent,
@@ -202,7 +202,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 		// Log successful authentication
 		authLogger.log({
 			action: 'LOGIN_SUCCESS',
-			userId: decoded.userId,
+			userId: decoded.userId.toString(),
 			email: decoded.email,
 			ip: clientIP,
 			userAgent,
@@ -215,7 +215,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 		// Log error for debugging but don't expose internal details
 		authLogger.log({
 			action: 'AUTH_ERROR',
-			userId: req.user?.userId,
+			userId: req.user?.userId.toString(),
 			ip: clientIP,
 			userAgent,
 			url: req.url,
