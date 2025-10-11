@@ -119,6 +119,18 @@ export const UpdateUserSchema = UserSchema.partial()
 export const UserOtpVerifySchema = z.object({ email: z.email().max(100), otp: z.string().length(6), }).strict();
 export const UserLoginSchema = z.object({ email: z.email().max(100), password: z.string().max(255), }).strict();
 
+// Password Reset Schemas
+export const ForgotPasswordSchema = z.object({ email: z.email().max(100) }).strict();
+export const ResetPasswordWithOtpSchema = z.object({
+	email: z.email().max(100),
+	otp: z.string().length(6),
+	newPassword: z.string().min(8).max(255)
+}).strict();
+export const ResetPasswordWithTokenSchema = z.object({
+	token: z.string().min(1),
+	newPassword: z.string().min(8).max(255)
+}).strict();
+
 // -----------------------------
 // 🧩 Types
 // -----------------------------

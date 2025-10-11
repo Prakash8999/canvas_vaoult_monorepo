@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { User, UserCreationAttributes } from './users.model';
 import redisClient from '../../config/redis';
 import { otpQueue } from '../../jobs/producer';
@@ -92,7 +93,7 @@ export async function verifyOtpService(email: string, otp: string) {
   const token = jwt.sign(
     { userId: user.dataValues.id, email: user.dataValues.email },
     process.env.JWT_SECRET,
-    { expiresIn: '1h', issuer: 'canvas-backend', audience: 'canvas-users' }
+    { expiresIn: '1d', issuer: 'canvas-backend', audience: 'canvas-users' }
   );
   return { token };
 }
@@ -121,7 +122,7 @@ export async function loginUserService(email: string, otpOrPassword: string) {
   const token = jwt.sign(
     { userId: user.dataValues.id, email: user.dataValues.email },
     process.env.JWT_SECRET,
-    { expiresIn: '1h', issuer: 'canvas-backend', audience: 'canvas-users' }
+    { expiresIn: '1d', issuer: 'canvas-backend', audience: 'canvas-users' }
   );
   return { token };
 }
@@ -159,4 +160,100 @@ export async function blockUserService(userId: number) {
   }
   await User.update({ block: true, blocked_on: new Date() }, { where: { id: userId } });
   return {};
+}
+
+export async function forgotPasswordOtpService(email: string) {
+  const user = await User.findOne({ where: { email, block: false } });
+  if (!user) {
+    const err: any = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (!user.dataValues.is_email_verified) {
+    const err: any = new Error('Email not verified');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  await redisClient.set(`user:password-reset-otp:${user.dataValues.id}`, otp, { EX: 300 }); // 5 minutes
+
+  await otpQueue.add('send-password-reset-otp', { email: user.dataValues.email, otp: parseInt(otp) });
+
+  return { message: 'Password reset OTP sent to your email' };
+}
+
+export async function forgotPasswordLinkService(email: string) {
+  const user = await User.findOne({ where: { email, block: false } });
+  if (!user) {
+    const err: any = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  if (!user.dataValues.is_email_verified) {
+    const err: any = new Error('Email not verified');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  await redisClient.set(`user:password-reset-token:${resetToken}`, user.dataValues.id!.toString(), { EX: 900 }); // 15 minutes
+
+  const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
+
+  await otpQueue.add('send-password-reset-link', { email: user.dataValues.email, resetLink });
+
+  return { message: 'Password reset link sent to your email' };
+}
+
+export async function resetPasswordWithOtpService(email: string, otp: string, newPassword: string) {
+  const user = await User.findOne({ where: { email, block: false } });
+  if (!user) {
+    const err: any = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const storedOtp = await redisClient.get(`user:password-reset-otp:${user.dataValues.id}`);
+  if (!storedOtp) {
+    const err: any = new Error('OTP expired or not found. Please request a new one.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (storedOtp !== otp) {
+    const err: any = new Error('Invalid OTP');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+  await User.update({ password: hashedPassword }, { where: { email } });
+  await redisClient.del(`user:password-reset-otp:${user.dataValues.id}`);
+
+  return { message: 'Password reset successfully' };
+}
+
+export async function resetPasswordWithTokenService(token: string, newPassword: string) {
+  const userId = await redisClient.get(`user:password-reset-token:${token}`);
+  if (!userId) {
+    const err: any = new Error('Invalid or expired reset token');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const user = await User.findOne({ where: { id: parseInt(userId), block: false } });
+  if (!user) {
+    const err: any = new Error('User not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+  await User.update({ password: hashedPassword }, { where: { id: parseInt(userId) } });
+  await redisClient.del(`user:password-reset-token:${token}`);
+
+  return { message: 'Password reset successfully' };
 }

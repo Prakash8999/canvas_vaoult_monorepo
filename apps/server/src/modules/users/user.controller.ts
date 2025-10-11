@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { CreateUserSchema, UserLoginSchema, UserOtpVerifySchema, UpdateUserSchema } from './users.model';
+import { CreateUserSchema, UserLoginSchema, UserOtpVerifySchema, ForgotPasswordSchema, ResetPasswordWithOtpSchema, ResetPasswordWithTokenSchema, UpdateUserSchema } from './users.model';
 import { successHandler, errorHandler } from '../../common/middlewares/responseHandler';
 import { parseError } from '../../common/utils/error.parser';
 import * as userService from './user.service';
@@ -102,5 +102,49 @@ export const blockUser = async (req: Request, res: Response) => {
 	} catch (error) {
 		const errorParser = parseError(error);
 		errorHandler(res, "Failed to block user", errorParser.message, errorParser.statusCode);
+	}
+}
+
+export const forgotPasswordOtp = async (req: Request, res: Response) => {
+	try {
+		const body = ForgotPasswordSchema.parse(req.body);
+		const result = await userService.forgotPasswordOtpService(body.email);
+		successHandler(res, result.message, {}, 200);
+	} catch (error) {
+		const errorParser = parseError(error);
+		errorHandler(res, "Failed to send password reset OTP", errorParser.message, errorParser.statusCode);
+	}
+}
+
+export const forgotPasswordLink = async (req: Request, res: Response) => {
+	try {
+		const body = ForgotPasswordSchema.parse(req.body);
+		const result = await userService.forgotPasswordLinkService(body.email);
+		successHandler(res, result.message, {}, 200);
+	} catch (error) {
+		const errorParser = parseError(error);
+		errorHandler(res, "Failed to send password reset link", errorParser.message, errorParser.statusCode);
+	}
+}
+
+export const resetPasswordWithOtp = async (req: Request, res: Response) => {
+	try {
+		const body = ResetPasswordWithOtpSchema.parse(req.body);
+		const result = await userService.resetPasswordWithOtpService(body.email, body.otp, body.newPassword);
+		successHandler(res, result.message, {}, 200);
+	} catch (error) {
+		const errorParser = parseError(error);
+		errorHandler(res, "Failed to reset password", errorParser.message, errorParser.statusCode);
+	}
+}
+
+export const resetPasswordWithToken = async (req: Request, res: Response) => {
+	try {
+		const body = ResetPasswordWithTokenSchema.parse(req.body);
+		const result = await userService.resetPasswordWithTokenService(body.token, body.newPassword);
+		successHandler(res, result.message, {}, 200);
+	} catch (error) {
+		const errorParser = parseError(error);
+		errorHandler(res, "Failed to reset password", errorParser.message, errorParser.statusCode);
 	}
 }

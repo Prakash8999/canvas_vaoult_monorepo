@@ -9,6 +9,10 @@ const router = Router();
 router.post('/signup', userController.addUser);
 router.post('/verify-otp', userController.verifyOtp);
 router.post('/login', userController.loginUser);
+router.post('/forgot-password-otp', userController.forgotPasswordOtp);
+router.post('/forgot-password-link', userController.forgotPasswordLink);
+router.post('/reset-password-otp', userController.resetPasswordWithOtp);
+router.post('/reset-password-token', userController.resetPasswordWithToken);
 
 // Protected routes
 router.get('/', authUser, userController.getUserProfile);

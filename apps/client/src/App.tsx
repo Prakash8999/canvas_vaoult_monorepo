@@ -18,10 +18,30 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/ProtectedRoute';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { CommandPalette } from '@/components/ui/command-palette';
+import { useDexieHydration } from './hooks/useDexieHydration';
+import { useSyncManager } from './hooks/useSyncManager';
+import { SyncStatusBadge, SyncDebugPanel } from './components/SyncStatusBadge';
 
 const queryClient = new QueryClient();
 
 const App = () => {
+  // Dexie hydration
+  const { hydrationComplete, migrationError } = useDexieHydration();
+
+  // Sync manager
+  const { startSyncManager, stopSyncManager } = useSyncManager();
+
+  // Start sync manager after hydration
+  useEffect(() => {
+    if (hydrationComplete) {
+      startSyncManager();
+    }
+
+    return () => {
+      stopSyncManager();
+    };
+  }, [hydrationComplete, startSyncManager, stopSyncManager]);
+
   // Register global keyboard shortcut for Quick Capture so it's available on every page
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -36,6 +56,21 @@ const App = () => {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Show loading during hydration
+  if (!hydrationComplete) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your notes...</p>
+          {migrationError && (
+            <p className="text-red-600 text-sm mt-2">Migration error: {migrationError}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -43,6 +78,14 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            {/* Sync Status Badge */}
+            <div className="fixed top-4 right-4 z-50">
+              <SyncStatusBadge />
+            </div>
+
+            {/* Debug Panel in development */}
+            <SyncDebugPanel />
+
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/dashboard" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>} />

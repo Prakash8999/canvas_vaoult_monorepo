@@ -1,5 +1,94 @@
 # Welcome to your Lovable project
 
+## Dexie Migration & Sync Manager
+
+This application uses Dexie (IndexedDB) for persistent storage with a robust sync manager for server synchronization.
+
+### Migration from localStorage
+
+The app automatically migrates from localStorage to Dexie on first load. The migration:
+
+1. Reads existing notes from `vcw:enhancedNotes` localStorage key
+2. Converts to Dexie NoteRecord format
+3. Stores in IndexedDB with backup in meta table
+4. Sets migration flag to prevent re-migration
+
+### Rollback (if needed)
+
+To rollback to localStorage (for debugging):
+
+```javascript
+// In browser console
+import { rollbackFromDexieToLocalStorage } from './src/utils/migration/localStorageToDexie';
+rollbackFromDexieToLocalStorage().then(result => console.log(result));
+```
+
+### Sync Manager
+
+The sync manager batches local changes and sends them to `/api/sync/events`. Features:
+
+- **Batching**: Collects events for 2s after last change, or when 20+ events, or every 60s
+- **Retry**: Progressive backoff on failures (1s, 2s, 5s, 10s, 30s)
+- **Conflict Resolution**: UI for handling server conflicts
+- **Offline Support**: Queues events when offline, syncs on reconnection
+- **Leader Election**: Only one tab syncs to prevent duplicates
+
+### Feature Flag
+
+Set `DEXIE_PERSISTENCE_ENABLED = false` in `src/utils/migration/localStorageToDexie.ts` to disable Dexie and use localStorage only.
+
+### Debug Tools
+
+- **Sync Status Badge**: Shows current sync status in top-right
+- **Debug Panel**: Available in development mode with sync details
+- **Console Logs**: Check browser console for detailed sync logs
+- **Force Sync**: Click debug panel button to trigger immediate sync
+
+### API Contract
+
+The sync manager expects `/api/sync/events` endpoint with this contract:
+
+**Request:**
+```json
+{
+  "clientId": "device-uuid",
+  "events": [
+    {
+      "id": "event-uuid",
+      "type": "note.create|note.update|note.delete",
+      "resourceId": "note-id",
+      "payload": { /* event data */ },
+      "createdAt": "ISO-string",
+      "opSeq": 123
+    }
+  ]
+}
+```
+
+**Success Response:**
+```json
+{
+  "applied": ["event-uuid"],
+  "updatedResources": [
+    {
+      "resourceType": "note",
+      "id": "note-id",
+      "content": { /* canonical content */ },
+      "version": 2,
+      "updatedAt": "ISO-string"
+    }
+  ],
+  "conflicts": [
+    {
+      "resourceId": "note-id",
+      "serverState": { /* server version */ },
+      "clientEventIds": ["event-uuid"],
+      "reason": "concurrent_update"
+    }
+  ]
+}
+```
+
 ## Project info
 
 **URL**: https://lovable.dev/projects/a42424d3-3564-4d6c-93b1-d240441aef84

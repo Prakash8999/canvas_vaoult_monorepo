@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { OutputData } from '@editorjs/editorjs';
 import Fuse from 'fuse.js';
+import { putNote, deleteNote as deleteNoteFromDexie, getAllNotes, setMeta, getMeta } from '../lib/dexieClient';
+import { DEXIE_PERSISTENCE_ENABLED } from '../utils/migration/localStorageToDexie';
+import { addNoteCreateEvent, addNoteUpdateEvent, addNoteDeleteEvent } from '../lib/outbox';
 
 export interface Note {
   id: string;
@@ -40,6 +43,7 @@ interface EnhancedNoteState {
   deleteNote: (id: string) => void;
   updateNote: (id: string, updates: Partial<Note>) => void;
   setCurrentNote: (id: string | null) => void;
+  setNotesFromRecords: (notes: Record<string, Note>) => void; // For hydration
   
   // UI actions
   setMode: (mode: 'full' | 'light') => void;
@@ -290,13 +294,50 @@ const loadCurrentNoteId = (): string | null => {
   }
 };
 
-const saveNotes = (notes: Record<string, Note>) => {
+const saveNotes = async (notes: Record<string, Note>) => {
   try {
+    // Always save to localStorage for backward compatibility
     localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
     console.log('[NoteStore] Saved notes to localStorage:', Object.keys(notes));
+
+    // Also save to Dexie if enabled
+    if (DEXIE_PERSISTENCE_ENABLED) {
+      const noteRecords = Object.values(notes).map(note => ({
+        id: note.id,
+        title: note.name,
+        content: note.content,
+        tags: note.tags,
+        backlinks: [], // Will be calculated separately
+        pinned: note.isPinned,
+        version: 1, // TODO: Implement versioning
+        updatedAt: new Date(note.modifiedAt).toISOString(),
+        meta: {
+          createdAt: new Date(note.createdAt).toISOString(),
+          wordCount: note.wordCount,
+        },
+      }));
+
+      // Bulk save to Dexie (this will be async)
+      import('../lib/dexieClient').then(({ bulkPutNotes }) => {
+        bulkPutNotes(noteRecords).catch(e => console.warn('Failed to save to Dexie:', e));
+      });
+    }
   } catch (e) {
     console.warn('Failed to save notes:', e);
   }
+};
+
+// Get or create device client ID
+const getClientId = async (): Promise<string> => {
+  if (DEXIE_PERSISTENCE_ENABLED) {
+    let clientId = await getMeta('clientId');
+    if (!clientId) {
+      clientId = crypto.randomUUID();
+      await setMeta('clientId', clientId);
+    }
+    return clientId;
+  }
+  return 'local-client'; // Fallback
 };
 
 const saveCurrentNoteId = (id: string | null) => {
@@ -352,11 +393,27 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
         console.log(`[NoteStore] Notes after creation:`, Object.keys(newNotes));
         return { notes: newNotes };
       });
+
+      // Add to outbox if Dexie enabled (fire and forget)
+      if (DEXIE_PERSISTENCE_ENABLED) {
+        getClientId().then(clientId => {
+          addNoteCreateEvent(id, {
+            title: name,
+            content,
+            tags: note.tags,
+            pinned: false,
+            updatedAt: new Date(now).toISOString(),
+          }, clientId).catch(e => console.warn('Failed to add create event to outbox:', e));
+        }).catch(e => console.warn('Failed to get client ID:', e));
+      }
       
       return id;
     },
     
     deleteNote: (id: string) => {
+      // Get the note before deleting for outbox event
+      const noteToDelete = get().notes[id];
+      
       set(state => {
         const { [id]: deleted, ...remainingNotes } = state.notes;
         saveNotes(remainingNotes);
@@ -366,6 +423,19 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
           currentNoteId: state.currentNoteId === id ? null : state.currentNoteId,
         };
       });
+
+      // Add to outbox if Dexie enabled (fire and forget)
+      if (DEXIE_PERSISTENCE_ENABLED && noteToDelete) {
+        getClientId().then(clientId => {
+          addNoteDeleteEvent(id, {
+            title: noteToDelete.name,
+            content: noteToDelete.content,
+            tags: noteToDelete.tags,
+            pinned: noteToDelete.isPinned,
+            updatedAt: new Date(noteToDelete.modifiedAt).toISOString(),
+          }, clientId).catch(e => console.warn('Failed to add delete event to outbox:', e));
+        }).catch(e => console.warn('Failed to get client ID:', e));
+      }
     },
     
     updateNote: (id: string, updates: Partial<Note>) => {
@@ -390,6 +460,27 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
         
         return { notes: newNotes };
       });
+
+      // Add to outbox if Dexie enabled (fire and forget)
+      if (DEXIE_PERSISTENCE_ENABLED) {
+        const currentNote = get().notes[id];
+        if (currentNote) {
+          getClientId().then(clientId => {
+            addNoteUpdateEvent(id, {
+              title: updates.name || currentNote.name,
+              content: updates.content || currentNote.content,
+              tags: currentNote.tags,
+              pinned: updates.isPinned !== undefined ? updates.isPinned : currentNote.isPinned,
+              updatedAt: new Date(currentNote.modifiedAt).toISOString(),
+            }, clientId).catch(e => console.warn('Failed to add update event to outbox:', e));
+          }).catch(e => console.warn('Failed to get client ID:', e));
+        }
+      }
+    },
+    
+    setNotesFromRecords: (notes: Record<string, Note>) => {
+      set({ notes });
+      // Don't save to localStorage here, as this is for hydration from Dexie
     },
     
     setCurrentNote: (id: string | null) => {
