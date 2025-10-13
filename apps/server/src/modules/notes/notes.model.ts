@@ -12,13 +12,22 @@ export const NoteSchema = z
 			description: 'Unique identifier for the note',
 		}),
 
+		note_uid: z.string().openapi({
+			example: 'note-12345',
+			description: 'Unique UID for the note, used for client-side identification',
+		}),
+		user_id: z.number().int().openapi({
+			example: 1,
+			description: 'ID of the user who owns the note',
+		}),
+
 		title: z.string().min(1).openapi({
 			example: 'Weekly Summary',
 			description: 'Title of the note',
 		}),
 
 		content: z
-			.record(z.string(), z.any())
+			.record(z.string(), z.any()).optional()
 			.openapi({
 				description: 'EditorJS JSON blocks (rich text content)'
 			}),
@@ -67,6 +76,8 @@ export const CreateNoteSchema = NoteSchema.omit({
 	id: true,
 	created_at: true,
 	updated_at: true,
+	user_id: true,
+	note_uid: true,
 }).openapi({
 	title: 'CreateNoteInput',
 	description: 'Payload for creating a new note',
@@ -74,6 +85,8 @@ export const CreateNoteSchema = NoteSchema.omit({
 
 export const UpdateNoteSchema = NoteSchema.partial().omit({
 	id: true,
+	user_id: true,
+	note_uid: true,
 	created_at: true,
 }).openapi({
 	title: 'UpdateNoteInput',
@@ -94,6 +107,8 @@ export class Note
 	extends Model<NoteAttributes, NoteCreationAttributes>
 	implements NoteAttributes {
 	public id!: number;
+	public note_uid!: string;
+	public user_id!: number;
 	public title!: string;
 	public content!: Record<string, any>;
 	public attachment_ids?: number[];
@@ -112,13 +127,21 @@ Note.init(
 			primaryKey: true,
 			allowNull: false,
 		},
+		note_uid: {
+			type: DataTypes.STRING,
+			allowNull: false,
+		},
+		user_id: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
+		},
 		title: {
 			type: DataTypes.TEXT,
 			allowNull: false,
 		},
 		content: {
 			type: DataTypes.JSON,
-			allowNull: false,
+			allowNull: true,
 			comment: 'EditorJS content blocks as JSON',
 		},
 		tags: {
@@ -153,6 +176,13 @@ Note.init(
 	{
 		sequelize,
 		tableName: 'notes',
+		timestamps: false,
+		indexes: [
+			{
+				fields: ['note_uid'],
+				unique: true,
+			}
+		],
 	}
 );
 

@@ -19,6 +19,8 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { useCanvasDocumentStore } from '@/stores/canvasDocument';
 import { format } from 'date-fns';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
+import { useNotes, useNoteMutations } from '@/hooks/useNotes';
+import { convertApiNoteToLocal } from '@/lib/api/notesApi';
 import { getWelcomeContent } from '../CommonContent/getWelcomeContent';
 
 export function Dashboard() {
@@ -31,7 +33,9 @@ export function Dashboard() {
     toggleAiDrawer 
   } = useWorkspaceStore();
 
-  const { notes, createNote, getPinnedNotes } = useEnhancedNoteStore();
+  const { data: notes = {} } = useNotes();
+  const { createNote } = useNoteMutations();
+  const { getPinnedNotes } = useEnhancedNoteStore();
   const { canvases } = useCanvasDocumentStore();
 
   const handleNoteClick = (note: any) => {
@@ -102,17 +106,27 @@ export function Dashboard() {
   };
 
   
-  const handleCreateNote = () => {
+  const handleCreateNote = async () => {
     const currentNotesCount = Object.keys(notes).length;
-    if (currentNotesCount === 0) {
-      // First note - create with welcome content
-      const noteId = createNote('Welcome to Your Knowledge Base', getWelcomeContent());
-      navigate(`/note/${noteId}`);
-    } else {
-      // Regular note
-      const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
-      const noteId = createNote(noteName);
-      navigate(`/note/${noteId}`);
+    try {
+      if (currentNotesCount === 0) {
+        // First note - create with welcome content
+        const apiNote = await createNote({
+          name: 'Welcome to Your Knowledge Base',
+          content: getWelcomeContent()
+        });
+        const localNote = convertApiNoteToLocal(apiNote);
+        navigate(`/note/${localNote.id}`);
+      } else {
+        // Regular note
+        const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
+        const apiNote = await createNote({ name: noteName });
+        const localNote = convertApiNoteToLocal(apiNote);
+        navigate(`/note/${localNote.id}`);
+      }
+    } catch (error) {
+      console.error('Failed to create note:', error);
+      // Handle error - maybe show a toast
     }
   };
   const handleItemClick = (item: any) => {

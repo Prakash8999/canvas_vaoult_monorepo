@@ -18,30 +18,12 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/auth/ProtectedRoute';
 import { AuthProvider } from '@/components/auth/AuthProvider';
 import { CommandPalette } from '@/components/ui/command-palette';
-import { useDexieHydration } from './hooks/useDexieHydration';
-import { useSyncManager } from './hooks/useSyncManager';
-import { SyncStatusBadge, SyncDebugPanel } from './components/SyncStatusBadge';
+
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  // Dexie hydration
-  const { hydrationComplete, migrationError } = useDexieHydration();
-
-  // Sync manager
-  const { startSyncManager, stopSyncManager } = useSyncManager();
-
-  // Start sync manager after hydration
-  useEffect(() => {
-    if (hydrationComplete) {
-      startSyncManager();
-    }
-
-    return () => {
-      stopSyncManager();
-    };
-  }, [hydrationComplete, startSyncManager, stopSyncManager]);
-
+  
   // Register global keyboard shortcut for Quick Capture so it's available on every page
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -57,19 +39,7 @@ const App = () => {
   }, []);
 
   // Show loading during hydration
-  if (!hydrationComplete) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your notes...</p>
-          {migrationError && (
-            <p className="text-red-600 text-sm mt-2">Migration error: {migrationError}</p>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // (If you want to show a loading UI, implement it with state and conditional rendering)
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -78,13 +48,7 @@ const App = () => {
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            {/* Sync Status Badge */}
-            <div className="fixed top-4 right-4 z-50">
-              <SyncStatusBadge />
-            </div>
-
-            {/* Debug Panel in development */}
-            <SyncDebugPanel />
+          
 
             <Routes>
               <Route path="/" element={<Index />} />
@@ -93,7 +57,7 @@ const App = () => {
               <Route path="/canvas/:id" element={<ProtectedRoute><CanvasPage /></ProtectedRoute>} />
               <Route path="/canvases" element={<ProtectedRoute><CanvasListPage /></ProtectedRoute>} />
               <Route path="/notes" element={<ProtectedRoute><NotesListPage /></ProtectedRoute>} />
-              <Route path="/note/:id" element={<ProtectedRoute><NoteEditorPage /></ProtectedRoute>} />
+              <Route path="/note/:uid" element={<ProtectedRoute><NoteEditorPage /></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               {/* <Route path="/note" element={<ProtectedRoute><NoteEditorPage /></ProtectedRoute>} /> */}

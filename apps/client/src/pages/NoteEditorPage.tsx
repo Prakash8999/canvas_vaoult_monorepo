@@ -1,29 +1,60 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
+import { useNoteMutations, useNote } from '@/hooks/useNotes';
+import { convertApiNoteToLocal } from '@/lib/api/notesApi';
 import NoteEditor from '../components/editor/NoteEditor';
 
 export default function NoteEditorPage() {
-  const { id } = useParams<{ id: string }>();
+  const { uid } = useParams<{ uid: string }>();
   const navigate = useNavigate();
-  const { notes, setCurrentNote, createNote } = useEnhancedNoteStore();
+  // We'll fetch the single note directly instead of relying on full notes cache
+  const { createNote } = useNoteMutations();
+  const { setCurrentNote } = useEnhancedNoteStore();
+
+  console.log('NoteEditorPage loaded with id:', uid);
   
+  // If no id param: create a new note then navigate
   useEffect(() => {
-    if (id) {
-      // Check if note exists
-      if (notes[id]) {
-        setCurrentNote(id);
-      } else {
-        // Note doesn't exist, redirect to notes list
-        navigate('/notes');
-      }
-    } else {
-      // No ID provided, create a new note and redirect
+    if (!uid) {
       const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
-      const newNoteId = createNote(noteName);
-      navigate(`/note/${newNoteId}`, { replace: true });
+      createNote({ name: noteName, content: { blocks: [] } })
+        .then((newApiNote) => {
+          const localNote = convertApiNoteToLocal(newApiNote);
+            navigate(`/note/${localNote.note_uid}`, { replace: true });
+        })
+        .catch((error) => {
+          console.error('Failed to create note:', error);
+          navigate('/notes');
+        });
     }
-  }, [id, notes, setCurrentNote, createNote, navigate]);
-  
+  }, [uid, createNote, navigate]);
+
+  // Validate numeric id early
+  const numericId = uid ? parseInt(uid, 10) : null;
+  const invalidId = uid && Number.isNaN(numericId!);
+  const { data: fetchedNote, isLoading, error } = useNote(uid && !invalidId ? uid : '');
+
+  useEffect(() => {
+    if (!uid || invalidId) return; // handled above
+    if (fetchedNote) {
+      setCurrentNote(uid);
+    }
+  }, [uid, invalidId, fetchedNote, setCurrentNote]);
+
+  // Redirect on invalid id or hard fetch error (e.g., 404)
+  useEffect(() => {
+    console.log('Checking for navigation due to invalidId or error:', { invalidId, error, uid });
+    if (invalidId) {
+      navigate('/notes', { replace: true });
+    } else if (error) {
+      console.warn('Failed to fetch note', uid, error);
+      navigate('/notes', { replace: true });
+    }
+  }, [invalidId, error, uid, navigate]);
+
+  if (!uid) return null; // interim while creating & navigating
+  if (invalidId) return null;
+  // Optionally could render a loading skeleton
   return <NoteEditor />;
 }

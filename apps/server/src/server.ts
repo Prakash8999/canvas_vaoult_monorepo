@@ -15,9 +15,12 @@ app.use(cors({ origin: ['http://localhost:8080'] , methods: ['GET', 'POST', 'PAT
 
 
 
+// Import all models to ensure they are registered with Sequelize
+
 // Import routes
 import userRoutes from './modules/users/user.route';
 import assetRoutes from './modules/assets/asset.route';
+import noteRoutes from './modules/notes/notes.route';
 
 // Use routes
 
@@ -50,6 +53,7 @@ app.use('/api-docs', ...swaggerUi.serve, swaggerUi.setup(combinedOpenApiDoc));
 const apiV1 = '/api/v1'
 app.use(`${apiV1}/user`, userRoutes);
 app.use(`${apiV1}/assets`, assetRoutes);
+app.use(`${apiV1}/note`, noteRoutes);
 
 app.listen(port, host, () => {
   console.log(`[ ready ] http://${host}:${port}`);

@@ -12,14 +12,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useNoteMutations } from '@/hooks/useNotes';
+import { convertApiNoteToLocal } from '@/lib/api/notesApi';
 import { Mic, Image, Pin } from 'lucide-react';
 
 export default function QuickCapture() {
   const quickOpen = useWorkspaceStore((s) => s.quickCaptureOpen);
   const toggleQuick = useWorkspaceStore((s) => s.toggleQuickCapture);
-  const createNote = useWorkspaceStore((s) => s.createNote);
-  const updateNote = useWorkspaceStore((s) => s.updateNote);
-  const togglePin = useWorkspaceStore((s) => s.togglePin);
+  const { createNote, updateNote } = useNoteMutations();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -45,22 +45,32 @@ export default function QuickCapture() {
     if (saving) return;
     setSaving(true);
 
-    // const note = createNote(title || 'Quick Note', 'note');
-    // if (note && note.id) {
-    //   // simple Editor.js-like structure for content (paragraph)
-    //   const payload = {
-    //     blocks: [
-    //       {
-    //         type: 'paragraph',
-    //         data: { text: content || '' },
-    //       },
-    //     ],
-    //     version: '2.28.2',
-    //   };
-
-    //   updateNote(note.id, { content: payload, title: title || note.title });
-    //   if (pinned) togglePin(note.id);
-    // }
+    try {
+      const apiNote = await createNote({
+        name: title || 'Quick Note',
+        content: {
+          blocks: [
+            {
+              type: 'paragraph',
+              data: { text: content || '' },
+            },
+          ],
+          version: '2.28.2',
+        }
+      });
+      
+      const localNote = convertApiNoteToLocal(apiNote);
+      
+      if (pinned) {
+        // Update the note to be pinned
+        await updateNote({
+          id: localNote.id,
+          updates: { isPinned: 1 }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save quick note:', error);
+    }
 
     setSaving(false);
     toggleQuick();

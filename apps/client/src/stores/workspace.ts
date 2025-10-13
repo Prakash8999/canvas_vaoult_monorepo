@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
+import { createJSONStorage } from 'zustand/middleware';
 
 export interface Note {
   id: string;
@@ -217,6 +218,14 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         partialize: (state) => ({
           workspaces: state.workspaces,
           currentWorkspace: state.currentWorkspace,
+        }),
+        storage: createJSONStorage(() => {
+          let memory: Record<string, string> = {};
+          return {
+            getItem: (key) => memory[key] ?? null,
+            setItem: (key, value) => { memory[key] = value; },
+            removeItem: (key) => { delete memory[key]; },
+          };
         }),
       }
     )

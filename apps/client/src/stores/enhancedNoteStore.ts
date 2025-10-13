@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { OutputData } from '@editorjs/editorjs';
 import Fuse from 'fuse.js';
-import { putNote, deleteNote as deleteNoteFromDexie, getAllNotes, setMeta, getMeta } from '../lib/dexieClient';
-import { DEXIE_PERSISTENCE_ENABLED } from '../utils/migration/localStorageToDexie';
-import { addNoteCreateEvent, addNoteUpdateEvent, addNoteDeleteEvent } from '../lib/outbox';
+import { notesApi, convertApiNoteToLocal, convertLocalNoteToApi } from '../lib/api/notesApi';
+// import { putNote, deleteNote as deleteNoteFromDexie, getAllNotes, setMeta, getMeta } from '../lib/dexieClient';
+// import { DEXIE_PERSISTENCE_ENABLED } from '../utils/migration/localStorageToDexie';
+// import { addNoteCreateEvent, addNoteUpdateEvent, addNoteDeleteEvent } from '../lib/outbox';
 
 export interface Note {
   id: string;
@@ -26,22 +27,19 @@ interface EnhancedNoteState {
   // Notes management
   notes: Record<string, Note>;
   currentNoteId: string | null;
-  
-  // UI state
+
+  // UI F
   mode: 'full' | 'light';
   showBacklinks: boolean;
   showTags: boolean;
   showGraphView: boolean;
   searchQuery: string;
-  
+
   // Search and filtering
   searchResults: Note[];
   tagFilter: string | null;
-  
+
   // Actions
-  createNote: (name: string, initialContent?: OutputData) => string;
-  deleteNote: (id: string) => void;
-  updateNote: (id: string, updates: Partial<Note>) => void;
   setCurrentNote: (id: string | null) => void;
   setNotesFromRecords: (notes: Record<string, Note>) => void; // For hydration
   
@@ -62,16 +60,10 @@ interface EnhancedNoteState {
   extractLinks: (content: OutputData) => string[];
   extractTags: (content: OutputData) => string[];
   
-  // Pin/unpin
-  togglePin: (id: string) => void;
   getPinnedNotes: () => Note[];
 }
 
-const STORAGE_KEY = 'vcw:enhancedNotes';
 const CURRENT_NOTE_KEY = 'vcw:currentNoteId';
-
-// Helper functions
-const generateId = () => Math.random().toString(36).substr(2, 9);
 
 const calculateWordCount = (content: OutputData): number => {
   if (!content.blocks) return 0;
@@ -273,18 +265,6 @@ const extractTagsFromContent = (content: OutputData): string[] => {
   return [...new Set(tags)]; // Remove duplicates
 };
 
-const loadStoredNotes = (): Record<string, Note> => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const notes = stored ? JSON.parse(stored) : {};
-    console.log('[NoteStore] Loaded notes from localStorage:', Object.keys(notes));
-    return notes;
-  } catch (e) {
-    console.warn('Failed to load stored notes:', e);
-    return {};
-  }
-};
-
 const loadCurrentNoteId = (): string | null => {
   try {
     return localStorage.getItem(CURRENT_NOTE_KEY);
@@ -294,51 +274,6 @@ const loadCurrentNoteId = (): string | null => {
   }
 };
 
-const saveNotes = async (notes: Record<string, Note>) => {
-  try {
-    // Always save to localStorage for backward compatibility
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
-    console.log('[NoteStore] Saved notes to localStorage:', Object.keys(notes));
-
-    // Also save to Dexie if enabled
-    if (DEXIE_PERSISTENCE_ENABLED) {
-      const noteRecords = Object.values(notes).map(note => ({
-        id: note.id,
-        title: note.name,
-        content: note.content,
-        tags: note.tags,
-        backlinks: [], // Will be calculated separately
-        pinned: note.isPinned,
-        version: 1, // TODO: Implement versioning
-        updatedAt: new Date(note.modifiedAt).toISOString(),
-        meta: {
-          createdAt: new Date(note.createdAt).toISOString(),
-          wordCount: note.wordCount,
-        },
-      }));
-
-      // Bulk save to Dexie (this will be async)
-      import('../lib/dexieClient').then(({ bulkPutNotes }) => {
-        bulkPutNotes(noteRecords).catch(e => console.warn('Failed to save to Dexie:', e));
-      });
-    }
-  } catch (e) {
-    console.warn('Failed to save notes:', e);
-  }
-};
-
-// Get or create device client ID
-const getClientId = async (): Promise<string> => {
-  if (DEXIE_PERSISTENCE_ENABLED) {
-    let clientId = await getMeta('clientId');
-    if (!clientId) {
-      clientId = crypto.randomUUID();
-      await setMeta('clientId', clientId);
-    }
-    return clientId;
-  }
-  return 'local-client'; // Fallback
-};
 
 const saveCurrentNoteId = (id: string | null) => {
   try {
@@ -353,12 +288,11 @@ const saveCurrentNoteId = (id: string | null) => {
 };
 
 export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
-  const initialNotes = loadStoredNotes();
   const initialCurrentNoteId = loadCurrentNoteId();
   
   return {
     // Initial state
-    notes: initialNotes,
+    notes: {},
     currentNoteId: initialCurrentNoteId,
     mode: 'full',
     showBacklinks: false,
@@ -367,127 +301,17 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
     searchQuery: '',
     searchResults: [],
     tagFilter: null,
-    
-    // Note management
-    createNote: (name: string, initialContent?: OutputData) => {
-      const id = generateId();
-      const now = Date.now();
-      const content = initialContent || { blocks: [] };
-      
-      const note: Note = {
-        id,
-        name,
-        content,
-        tags: extractTagsFromContent(content),
-        createdAt: now,
-        modifiedAt: now,
-        isPinned: false,
-        wordCount: calculateWordCount(content),
-      };
-      
-      console.log(`[NoteStore] Creating new note: ${name} with ID: ${id}`);
-      
-      set(state => {
-        const newNotes = { ...state.notes, [id]: note };
-        saveNotes(newNotes);
-        console.log(`[NoteStore] Notes after creation:`, Object.keys(newNotes));
-        return { notes: newNotes };
-      });
 
-      // Add to outbox if Dexie enabled (fire and forget)
-      if (DEXIE_PERSISTENCE_ENABLED) {
-        getClientId().then(clientId => {
-          addNoteCreateEvent(id, {
-            title: name,
-            content,
-            tags: note.tags,
-            pinned: false,
-            updatedAt: new Date(now).toISOString(),
-          }, clientId).catch(e => console.warn('Failed to add create event to outbox:', e));
-        }).catch(e => console.warn('Failed to get client ID:', e));
-      }
-      
-      return id;
-    },
-    
-    deleteNote: (id: string) => {
-      // Get the note before deleting for outbox event
-      const noteToDelete = get().notes[id];
-      
-      set(state => {
-        const { [id]: deleted, ...remainingNotes } = state.notes;
-        saveNotes(remainingNotes);
-        
-        return {
-          notes: remainingNotes,
-          currentNoteId: state.currentNoteId === id ? null : state.currentNoteId,
-        };
-      });
-
-      // Add to outbox if Dexie enabled (fire and forget)
-      if (DEXIE_PERSISTENCE_ENABLED && noteToDelete) {
-        getClientId().then(clientId => {
-          addNoteDeleteEvent(id, {
-            title: noteToDelete.name,
-            content: noteToDelete.content,
-            tags: noteToDelete.tags,
-            pinned: noteToDelete.isPinned,
-            updatedAt: new Date(noteToDelete.modifiedAt).toISOString(),
-          }, clientId).catch(e => console.warn('Failed to add delete event to outbox:', e));
-        }).catch(e => console.warn('Failed to get client ID:', e));
-      }
-    },
-    
-    updateNote: (id: string, updates: Partial<Note>) => {
-      set(state => {
-        const existingNote = state.notes[id];
-        if (!existingNote) return state;
-        
-        const updatedNote = { 
-          ...existingNote, 
-          ...updates, 
-          modifiedAt: Date.now(),
-        };
-        
-        // Update derived fields if content changed
-        if (updates.content) {
-          updatedNote.tags = extractTagsFromContent(updates.content);
-          updatedNote.wordCount = calculateWordCount(updates.content);
-        }
-        
-        const newNotes = { ...state.notes, [id]: updatedNote };
-        saveNotes(newNotes);
-        
-        return { notes: newNotes };
-      });
-
-      // Add to outbox if Dexie enabled (fire and forget)
-      if (DEXIE_PERSISTENCE_ENABLED) {
-        const currentNote = get().notes[id];
-        if (currentNote) {
-          getClientId().then(clientId => {
-            addNoteUpdateEvent(id, {
-              title: updates.name || currentNote.name,
-              content: updates.content || currentNote.content,
-              tags: currentNote.tags,
-              pinned: updates.isPinned !== undefined ? updates.isPinned : currentNote.isPinned,
-              updatedAt: new Date(currentNote.modifiedAt).toISOString(),
-            }, clientId).catch(e => console.warn('Failed to add update event to outbox:', e));
-          }).catch(e => console.warn('Failed to get client ID:', e));
-        }
-      }
-    },
-    
     setNotesFromRecords: (notes: Record<string, Note>) => {
       set({ notes });
       // Don't save to localStorage here, as this is for hydration from Dexie
     },
-    
+
     setCurrentNote: (id: string | null) => {
       set({ currentNoteId: id });
       saveCurrentNoteId(id);
     },
-    
+
     // UI actions
     setMode: (mode: 'full' | 'light') => set({ mode }),
     toggleBacklinks: () => set(state => ({ showBacklinks: !state.showBacklinks })),
@@ -503,7 +327,7 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
       }
     },
     setTagFilter: (tag: string | null) => set({ tagFilter: tag }),
-    
+
     // Advanced features
     searchNotes: (query: string) => {
       const { notes } = get();
@@ -611,15 +435,6 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
     
     extractLinks: extractLinksFromContentLegacy,
     extractTags: extractTagsFromContent,
-    
-    // Pin/unpin
-    togglePin: (id: string) => {
-      const { updateNote, notes } = get();
-      const note = notes[id];
-      if (note) {
-        updateNote(id, { isPinned: !note.isPinned });
-      }
-    },
     
     getPinnedNotes: () => {
       const { notes } = get();

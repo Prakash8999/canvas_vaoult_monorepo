@@ -21,6 +21,7 @@ import { Separator } from '@/components/ui/separator';
 
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
+import { useNotes, useNoteMutations } from '@/hooks/useNotes';
 
 import { 
   Network, 
@@ -52,13 +53,12 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
   const location = useLocation();
   const sidebarOpen = useWorkspaceStore(state => state.sidebarOpen);
   
+  const { data: notes = {} } = useNotes();
+  const { createNote, updateNote: updateNoteMutation, isCreating, isUpdating } = useNoteMutations();
+
   const {
-    notes,
     currentNoteId,
     setCurrentNote,
-    createNote,
-    updateNote,
-    togglePin,
     getPinnedNotes,
     showBacklinks,
     showTags,
@@ -238,61 +238,136 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
   
 
   
-  // Create initial note if none exists
+  // Create initial note if none exists (guarded to avoid duplicates on refresh)
+  const WELCOME_SEEDED_KEY = 'vcw:welcomeNoteSeeded';
   useEffect(() => {
-    if (mode === 'full' && Object.keys(notes).length === 0) {
-      const initialNoteId = createNote('Welcome to Your Knowledge Base', getWelcomeContent());
-      if (embedded) {
-        setCurrentNote(initialNoteId);
-      } else {
-        navigate(`/note/${initialNoteId}`, { replace: true });
+    let cancelled = false;
+    const createInitialNote = async () => {
+      // Only seed when:
+      // - full mode
+      // - we currently have zero notes in state
+      // - we have NOT previously seeded (localStorage flag)
+      // - avoid race: wait a tick so any pending hydration can populate notes
+      if (mode === 'full' && Object.keys(notes).length === 0 && !localStorage.getItem(WELCOME_SEEDED_KEY)) {
+        // small defer to allow any async store hydration to run first
+        await new Promise(r => setTimeout(r, 50));
+        if (cancelled) return;
+        if (Object.keys(notes).length > 0) return; // notes arrived meanwhile
+        try {
+          const apiNote = await createNote({
+            name: 'Welcome to Your Knowledge Base',
+            content: getWelcomeContent()
+          });
+          localStorage.setItem(WELCOME_SEEDED_KEY, '1');
+          const initialNoteId = apiNote.id?.toString?.() || apiNote.id + '';
+          if (embedded) {
+            setCurrentNote(initialNoteId);
+          } else {
+            navigate(`/note/${initialNoteId}`, { replace: true });
+          }
+        } catch (error) {
+          console.error('Failed to create initial note:', error);
+        }
       }
-    }
-  }, [notes, createNote, setCurrentNote, mode, embedded, navigate]);
+    };
+    createInitialNote();
+    return () => { cancelled = true; };
+  }, [mode, notes, createNote, embedded, setCurrentNote, navigate]);
   
-  const handleCreateNote = () => {
+  const handleCreateNote = async () => {
     if (newNoteName.trim()) {
-      const currentNotesCount = Object.keys(notes).length;
-      if (currentNotesCount === 0) {
-        // First note - create with welcome content
-        const noteId = createNote(newNoteName.trim(), getWelcomeContent());
+      try {
+        const currentNotesCount = Object.keys(notes).length;
+        let apiNote;
+
+        if (currentNotesCount === 0) {
+          // First note - create with welcome content
+          apiNote = await createNote({
+            name: newNoteName.trim(),
+            content: getWelcomeContent()
+          });
+        } else {
+          // Regular note
+          apiNote = await createNote({ name: newNoteName.trim() });
+        }
+
+        const noteId = apiNote.id.toString();
         navigateToNote(noteId);
-      } else {
-        // Regular note
-        const noteId = createNote(newNoteName.trim());
-        navigateToNote(noteId);
+        setNewNoteName('');
+        setShowNotesList(false);
+      } catch (error) {
+        console.error('Failed to create note:', error);
+        toast.error('Failed to create note');
       }
-      setNewNoteName('');
-      setShowNotesList(false);
     }
   };
   
-  const handleNoteChange = (data: OutputData) => {
+  const handleNoteChange = async (data: OutputData) => {
     if (currentNoteId) {
       console.log(`[NoteChange] Updating note ${currentNoteId} with data:`, data);
-      updateNote(currentNoteId, { content: data });
-      
-      // Force backlinks refresh after content change
-      setTimeout(() => {
-        if (currentNoteId) {
-          console.log(`[NoteChange] Current note after update:`, notes[currentNoteId]);
-        }
-      }, 100);
+      try {
+        await updateNoteMutation({
+          id: currentNoteId,
+          updates: { content: data }
+        });
+
+        // Force backlinks refresh after content change
+        setTimeout(() => {
+          if (currentNoteId) {
+            console.log(`[NoteChange] Current note after update:`, notes[currentNoteId]);
+          }
+        }, 100);
+      } catch (error) {
+        console.error('Failed to update note:', error);
+        toast.error('Failed to save changes');
+      }
     } else {
       console.log(`[NoteChange] No current note ID to update`);
     }
   };
   
-  const handleNameChange = (newName: string) => {
+  const handleNameChange = async (newName: string) => {
     if (currentNoteId && newName.trim()) {
-      updateNote(currentNoteId, { name: newName.trim() });
+      try {
+        await updateNoteMutation({
+          id: currentNoteId,
+          updates: { name: newName.trim() }
+        });
+      } catch (error) {
+        console.error('Failed to update note name:', error);
+        toast.error('Failed to update note name');
+      }
     }
   };
   
-  const handleTemplateSelect = (templateContent: any, templateName: string) => {
-    const noteId = createNote(templateName, templateContent);
-    navigateToNote(noteId);
-    toast.success(`Template "${templateName}" applied successfully`);
+  const handleTogglePin = async () => {
+    if (currentNote) {
+      try {
+        await updateNoteMutation({
+          id: currentNote.id,
+          updates: { isPinned: !currentNote.isPinned }
+        });
+        toast.success(currentNote.isPinned ? 'Note unpinned' : 'Note pinned');
+      } catch (error) {
+        console.error('Failed to toggle pin:', error);
+        toast.error('Failed to update note');
+      }
+    }
+  };
+  
+  const handleTemplateSelect = async (templateContent: any, templateName: string) => {
+    if (currentNoteId) {
+      try {
+        await updateNoteMutation({
+          id: currentNoteId,
+          updates: { content: templateContent }
+        });
+        toast.success(`Applied template: ${templateName}`);
+      } catch (error) {
+        console.error('Failed to apply template:', error);
+        toast.error('Failed to apply template');
+      }
+    }
   };
   
   // Show simplified interface for light mode
@@ -499,7 +574,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => togglePin(currentNote.id)}
+                  onClick={handleTogglePin}
                   className={currentNote.isPinned ? "text-yellow-600" : ""}
                 >
                   {currentNote.isPinned ? <Pin size={16} /> : <PinOff size={16} />}
@@ -523,15 +598,23 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                 size="sm"
                 onClick={() => {
                   const currentNotesCount = Object.keys(notes).length;
-                  if (currentNotesCount === 0) {
-                    // First note - create with welcome content
-                    const noteId = createNote('Welcome to Your Knowledge Base', getWelcomeContent());
-                    navigateToNote(noteId);
+                  if (currentNotesCount === 0 && !localStorage.getItem(WELCOME_SEEDED_KEY)) {
+                    // First note - create with welcome content (only once)
+                    createNote({
+                      name: 'Welcome to Your Knowledge Base',
+                      content: getWelcomeContent()
+                    }).then(apiNote => {
+                      localStorage.setItem(WELCOME_SEEDED_KEY, '1');
+                      const noteId = apiNote.id?.toString?.() || apiNote.id + '';
+                      navigateToNote(noteId);
+                    });
                   } else {
                     // Regular note
                     const noteName = `Note ${new Date().toLocaleTimeString()}`;
-                    const noteId = createNote(noteName);
-                    navigateToNote(noteId);
+                    createNote({ name: noteName }).then(apiNote => {
+                      const noteId = apiNote.id?.toString?.() || apiNote.id + '';
+                      navigateToNote(noteId);
+                    });
                   }
                 }}
               >

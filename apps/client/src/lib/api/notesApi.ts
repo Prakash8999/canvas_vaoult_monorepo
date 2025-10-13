@@ -1,0 +1,166 @@
+import axios from 'axios';
+import { OutputData } from '@editorjs/editorjs';
+
+const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
+
+// Types matching the server response format
+export interface ApiNote {
+  id: number;
+  note_uid: string;
+  user_id: number;
+  title: string;
+  content: any; // Can be null or EditorJS content
+  tags: any; // Can be null or array
+  version: number;
+  attachment_ids: any;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateNoteRequest {
+  title: string;
+  content: OutputData;
+  tags?: string[];
+  pinned?: boolean;
+}
+
+export interface UpdateNoteRequest {
+  title?: string;
+  content?: OutputData;
+  tags?: string[];
+  pinned?: number;
+}
+
+export interface NotesListResponse {
+  notes: ApiNote[];
+  pagination?: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
+// API client with authentication
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('auth_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+console.log('API_BASE_URL:', API_BASE_URL, getAuthHeaders().Authorization);
+
+const api = axios.create({
+  baseURL: `${API_BASE_URL}/api/v1`,
+});
+
+// Add auth interceptor
+api.interceptors.request.use((config) => {
+  const headers = getAuthHeaders();
+  Object.assign(config.headers, headers);
+  return config;
+});
+
+// Notes API functions
+export const notesApi = {
+  // Get all notes with pagination
+  getAllNotes: async (limit = 100, offset = 0): Promise<NotesListResponse> => {
+    const response = await api.get(`/note/notes?limit=${limit}&offset=${offset}`);
+    // Handle both response formats: array directly or wrapped in object
+    const notesData = response.data.data;
+    if (Array.isArray(notesData)) {
+      // Legacy format: data is array of notes
+      return {
+        notes: notesData,
+        pagination: {
+          total: notesData.length,
+          limit,
+          offset,
+          hasMore: false
+        }
+      };
+    } else if (notesData && notesData.notes) {
+      // New format: data has notes and pagination
+      return notesData;
+    } else {
+      return {
+        notes: [],
+        pagination: {
+          total: 0,
+          limit,
+          offset,
+          hasMore: false
+        }
+      };
+    }
+  },
+
+  // Get a specific note by ID
+  getNote: async (uid: string): Promise<ApiNote> => {
+    const response = await api.get(`/note/${uid}`);
+    return response.data.data;
+  },
+
+  // Create a new note
+  createNote: async (noteData: CreateNoteRequest): Promise<ApiNote> => {
+    const response = await api.post('/note', noteData);
+    return response.data.data;
+  },
+
+  // Update an existing note
+  updateNote: async (id: number, noteData: UpdateNoteRequest): Promise<ApiNote> => {
+    const response = await api.patch(`/note/${id}`, noteData);
+    return response.data.data;
+  },
+
+  // Delete a note
+  deleteNote: async (id: number): Promise<{ deletedId: number }> => {
+    const response = await api.delete(`/note/${id}`);
+    return response.data.data;
+  },
+};
+
+// Helper function to convert API note to local note format
+export const convertApiNoteToLocal = (apiNote: any) => {
+  if (!apiNote || typeof apiNote !== 'object') {
+    console.error('Invalid apiNote received:', apiNote);
+    throw new Error('Invalid API note data');
+  }
+
+  return {
+    id: String(apiNote.id || ''),
+    name: apiNote.title || '',
+    content: apiNote.content || { blocks: [] },
+    tags: Array.isArray(apiNote.tags) ? apiNote.tags : [],
+    createdAt: apiNote.created_at ? new Date(apiNote.created_at).getTime() : Date.now(),
+    modifiedAt: apiNote.updated_at ? new Date(apiNote.updated_at).getTime() : Date.now(),
+    isPinned: Boolean(apiNote.pinned),
+    version: apiNote.version ,
+    note_uid: apiNote.note_uid,
+    wordCount: calculateWordCount(apiNote.content || { blocks: [] }),
+  };
+};
+
+// Helper function to convert local note to API format
+export const convertLocalNoteToApi = (localNote: any): CreateNoteRequest | UpdateNoteRequest => {
+  return {
+    title: localNote.name,
+    content: localNote.content,
+    tags: localNote.tags || [],
+    pinned: localNote.isPinned || false,
+  };
+};
+
+// Calculate word count from EditorJS content
+const calculateWordCount = (content: OutputData): number => {
+  if (!content.blocks) return 0;
+  
+  return content.blocks.reduce((count, block) => {
+    if (block.data?.text) {
+      const text = typeof block.data.text === 'string' ? block.data.text : '';
+      const words = text.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(word => word.length > 0);
+      return count + words.length;
+    }
+    return count;
+  }, 0);
+};

@@ -14,6 +14,8 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useNoteMutations } from '@/hooks/useNotes';
+import { convertApiNoteToLocal } from '@/lib/api/notesApi';
 
 interface CommandItem {
   id: string;
@@ -29,12 +31,13 @@ export function CommandPalette() {
   const { 
     commandPaletteOpen, 
     toggleCommandPalette, 
-    createNote, 
     currentWorkspace,
     setCurrentNote,
     toggleAiDrawer,
     setActiveContentType 
   } = useWorkspaceStore();
+  
+  const { createNote } = useNoteMutations();
   
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -45,9 +48,15 @@ export function CommandPalette() {
       title: 'Create Note',
       description: 'Create a new note with Editor.js',
       icon: <FileText className="h-4 w-4" />,
-      action: () => {
-        createNote('Untitled Note', 'note');
-        toggleCommandPalette();
+      action: async () => {
+        try {
+          const apiNote = await createNote({ name: 'Untitled Note' });
+          const localNote = convertApiNoteToLocal(apiNote);
+          setCurrentNote(localNote.id);
+          toggleCommandPalette();
+        } catch (error) {
+          console.error('Failed to create note:', error);
+        }
       },
       keywords: ['create', 'new', 'note', 'document', 'write'],
       category: 'create'
@@ -57,9 +66,15 @@ export function CommandPalette() {
       title: 'Create Document',
       description: 'Create a new document',
       icon: <Book className="h-4 w-4" />,
-      action: () => {
-        createNote('Untitled Document', 'document');
-        toggleCommandPalette();
+      action: async () => {
+        try {
+          const apiNote = await createNote({ name: 'Untitled Document' });
+          const localNote = convertApiNoteToLocal(apiNote);
+          setCurrentNote(localNote.id);
+          toggleCommandPalette();
+        } catch (error) {
+          console.error('Failed to create document:', error);
+        }
       },
       keywords: ['create', 'new', 'document', 'doc', 'write'],
       category: 'create'
@@ -69,9 +84,15 @@ export function CommandPalette() {
       title: 'Create Canvas',
       description: 'Create a new Excalidraw canvas',
       icon: <Palette className="h-4 w-4" />,
-      action: () => {
-        createNote('Untitled Canvas', 'canvas');
-        toggleCommandPalette();
+      action: async () => {
+        try {
+          const apiNote = await createNote({ name: 'Untitled Canvas' });
+          const localNote = convertApiNoteToLocal(apiNote);
+          setCurrentNote(localNote.id);
+          toggleCommandPalette();
+        } catch (error) {
+          console.error('Failed to create canvas:', error);
+        }
       },
       keywords: ['create', 'new', 'canvas', 'draw', 'excalidraw', 'diagram'],
       category: 'create'

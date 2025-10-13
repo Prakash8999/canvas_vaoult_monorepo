@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useNoteMutations } from '@/hooks/useNotes';
+import { convertApiNoteToLocal } from '@/lib/api/notesApi';
 import { ContentTabs } from './ContentTabs';
 import { cn } from '@/lib/utils';
 
@@ -35,13 +37,14 @@ export function Sidebar() {
     currentWorkspace, 
     currentNote,
     setCurrentNote,
-    createNote,
     toggleQuickCapture,
     toggleAiDrawer,
     searchQuery,
     setSearchQuery,
     addToRecent,
   } = useWorkspaceStore();
+  
+  const { createNote } = useNoteMutations();
   
   // determine active route to show focus in sidebar
   const path = location.pathname || '';
@@ -102,7 +105,15 @@ export function Sidebar() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => createNote('New Note')}
+          onClick={async () => {
+            try {
+              const apiNote = await createNote({ name: 'New Note' });
+              const localNote = convertApiNoteToLocal(apiNote);
+              navigate(`/note/${localNote.id}`);
+            } catch (error) {
+              console.error('Failed to create note:', error);
+            }
+          }}
           className={cn(
             "text-sidebar-foreground hover:bg-sidebar-accent",
             isNoteActive && "bg-sidebar-accent"
