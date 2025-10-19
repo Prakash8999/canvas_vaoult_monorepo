@@ -125,5 +125,5 @@ export const createUploadMiddleware = (userId: number, fileType?: string, maxFil
 			fileSize: maxFileSize, // Default 5MB
 			files: 1, // Only allow single file upload
 		},
-	}).single("image"); // Changed from .array() to .single()
+	}).single("file"); // Changed from .array() to .single()
 };
