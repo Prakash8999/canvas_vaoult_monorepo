@@ -15,6 +15,7 @@ export const dynamicUploadImages = (req: Request, res: Response, next: NextFunct
 	const upload = createUploadMiddleware(req.user.userId, fileType);
 
 	upload(req, res, function (err) {
+		console.log('error ', err);
 		if (err) {
 			errorHandler(res, err.message, {}, 500);
 			return
@@ -55,6 +56,7 @@ export const handleUploadImages = async (req: Request, res: Response) => {
 
 		return successHandler(res, "Image uploaded to S3 successfully", uploadedFile, 200);
 	} catch (error: any) {
+		console.error("Error uploading image:", error);
 		return errorHandler(res, error.message || "Image upload failed", {}, 500);
 	}
 };

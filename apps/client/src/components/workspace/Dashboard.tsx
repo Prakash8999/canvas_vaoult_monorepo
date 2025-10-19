@@ -58,6 +58,7 @@ export function Dashboard() {
     id: n.id,
     title: n.name || 'Untitled Note',
     updatedAt: n.modifiedAt,
+    note_uid: n.note_uid,
     type: 'note'
   }));
 
@@ -116,13 +117,13 @@ export function Dashboard() {
           content: getWelcomeContent()
         });
         const localNote = convertApiNoteToLocal(apiNote);
-        navigate(`/note/${localNote.id}`);
+        navigate(`/note/${localNote.note_uid}`);
       } else {
         // Regular note
         const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
         const apiNote = await createNote({ name: noteName });
         const localNote = convertApiNoteToLocal(apiNote);
-        navigate(`/note/${localNote.id}`);
+        navigate(`/note/${localNote.note_uid}`);
       }
     } catch (error) {
       console.error('Failed to create note:', error);
@@ -133,7 +134,8 @@ export function Dashboard() {
     if (item.type === 'canvas') {
       navigate(`/canvas/${item.id}`);
     } else {
-      navigate(`/note/${item.id}`);
+      console.log('Navigating to note:', item);
+      navigate(`/note/${item.note_uid}`);
     }
   };
 

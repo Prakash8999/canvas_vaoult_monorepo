@@ -16,7 +16,10 @@ import ChartTool from './tools/ChartTool';
 
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
 import { codeExecutionService } from '@/services/codeExecutionService';
+import { useNoteMutations } from '@/hooks/useNotes';
 import '../../styles/editorjs-custom.css';
+import axios from 'axios';
+import { useAuthStore } from '@/stores/authStore';
 
 interface EnhancedEditorJSProps {
   data?: OutputData;
@@ -54,10 +57,10 @@ export function EnhancedEditorJS({
     notes, 
     currentNoteId,
     setCurrentNote, 
-    createNote,
     mode: storeMode,
     setMode
   } = useEnhancedNoteStore();
+  const { createNote } = useNoteMutations();
   
   // Store latest props in a ref to avoid recreating the editor when props change
   const propsRef = useRef({ data, onChange, placeholder, readOnly, onImageError });
@@ -137,11 +140,8 @@ export function EnhancedEditorJS({
     });
   }, [notes]);
   
-  const handleNavigateToNote = useCallback((noteName: string, noteId?: string | null) => {
-    // Get fresh notes from store to avoid stale closure
+  const handleNavigateToNote = useCallback(async (noteName: string, noteId?: string | null) => {
     const freshNotes = useEnhancedNoteStore.getState().notes;
-    
-    // First priority: If we have a valid noteId that exists, use it directly
     if (noteId && noteId.trim() !== '' && freshNotes[noteId]) {
       if (onNavigateToNote) {
         onNavigateToNote(noteId);
@@ -150,76 +150,70 @@ export function EnhancedEditorJS({
       }
       return;
     }
-    
-    // If we have a noteId but it doesn't exist, clear it from WikiLinks
     if (noteId && noteId.trim() !== '' && !notes[noteId]) {
-      console.log(`[WikiLink] Note ID ${noteId} no longer exists, clearing from WikiLinks`);
       const wikiLinks = document.querySelectorAll(`wiki-link[data-note-id="${noteId}"]`);
       wikiLinks.forEach(link => {
         link.setAttribute('data-note-id', '');
       });
     }
-    
-    // Second priority: Find existing note by name
     const existingNote = Object.values(freshNotes).find(note => note.name === noteName);
-    
     if (existingNote) {
-      console.log(`[WikiLink] Found existing note by name: ${existingNote.name} (${existingNote.id})`);
-      // Update the WikiLink with the correct ID for future clicks
       updateWikiLinksWithId(noteName, existingNote.id);
-      
       if (onNavigateToNote) {
         onNavigateToNote(existingNote.id);
       } else {
         setCurrentNote(existingNote.id);
       }
     } else {
-      // Last resort: Create new note
       const isFirstNote = Object.keys(freshNotes).length === 0;
-      const newNoteId = isFirstNote ? 
-        createNote(noteName, {
-          blocks: [
-            {
-              type: 'paragraph',
-              data: {
-                text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
+      let newApiNote;
+      if (isFirstNote) {
+        newApiNote = await createNote({
+          name: noteName,
+          content: {
+            blocks: [
+              {
+                type: 'paragraph',
+                data: {
+                  text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
+                }
+              },
+              {
+                type: 'list',
+                data: {
+                  style: 'unordered',
+                  items: [
+                    'Create links between notes using [[Note Name]] syntax',
+                    'Add tags to organize your notes with #hashtag',
+                    'Use the graph view to visualize connections',
+                    'Run JavaScript and Python code in runnable blocks',
+                    'Create charts from your data',
+                    'Pin important notes for quick access'
+                  ]
+                }
+              },
+              {
+                type: 'paragraph',
+                data: {
+                  text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
+                }
               }
-            },
-            {
-              type: 'list',
-              data: {
-                style: 'unordered',
-                items: [
-                  'Create links between notes using [[Note Name]] syntax',
-                  'Add tags to organize your notes with #hashtag',
-                  'Use the graph view to visualize connections',
-                  'Run JavaScript and Python code in runnable blocks',
-                  'Create charts from your data',
-                  'Pin important notes for quick access'
-                ]
-              }
-            },
-            {
-              type: 'paragraph',
-              data: {
-                text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
-              }
-            }
-          ]
-        }) : 
-        createNote(noteName);
-        
+            ]
+          }
+        });
+      } else {
+        newApiNote = await createNote({ name: noteName });
+      }
+      const newNoteId = newApiNote.id?.toString?.() || newApiNote.id + '';
       if (onNavigateToNote) {
         onNavigateToNote(newNoteId);
       } else {
         setCurrentNote(newNoteId);
       }
-      
-      // Update WikiLinks with the new note ID
       updateWikiLinksWithId(noteName, newNoteId);
     }
-  }, [setCurrentNote, createNote, onNavigateToNote, updateWikiLinksWithId]);
-  
+  }, [setCurrentNote, createNote, onNavigateToNote, updateWikiLinksWithId, notes]);
+  console.log('localStorage', localStorage.getItem('auth_token'));
   const handleCodeExecution = useCallback(async (code: string, language: string) => {
     return await codeExecutionService.executeCode(code, language);
   }, []);
@@ -262,9 +256,35 @@ export function EnhancedEditorJS({
       image: {
         class: ImageTool,
         config: {
-          endpoints: {
-            byFile: '/api/upload',
-            byUrl: '/api/fetchUrl',
+          uploader: {
+            async uploadByFile(file) {
+              const formData = new FormData();
+              formData.append('file', file);
+              // Get token from Zustand store
+              const token = useAuthStore.getState().token;
+              try {
+                const response = await axios.post(
+                  `${import.meta.env.VITE_BASE_URL}/api/v1/assets/upload?fileType=note`,
+                  formData,
+                  {
+                    headers: {
+                      Authorization: token ? `Bearer ${token}` : '',
+                    },
+                  }
+                );
+                const data = response.data;
+                console.log('Image upload response:', data);
+                return {
+                  success: 1,
+                  file: {
+                    url: data.url,
+                  },
+                };
+              } catch (error) {
+                const message = error?.response?.data?.message || 'Image upload failed';
+                throw new Error(message);
+              }
+            },
           },
           captionPlaceholder: 'Add a caption',
           onUploadError: (err: any) => {

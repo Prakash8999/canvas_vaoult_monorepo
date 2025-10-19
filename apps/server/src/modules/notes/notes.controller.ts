@@ -31,7 +31,7 @@ export const getAllNotes = async (req: Request, res: Response) => {
 
 
         const { notes, total } = await noteService.getAllNotesService(userId, limit, offset);
-		console.log('Notes retrieved:', notes);
+		// console.log('Notes retrieved:', notes);
 
         const responseData = {
             notes: notes.map(note => {

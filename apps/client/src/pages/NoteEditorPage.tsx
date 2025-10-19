@@ -32,15 +32,24 @@ export default function NoteEditorPage() {
 
   // Validate numeric id early
   const numericId = uid ? parseInt(uid, 10) : null;
-  const invalidId = uid && Number.isNaN(numericId!);
+  const invalidId = uid && (uid.length === 0 || uid.length !== 36); // Example: check for UUID length; 
   const { data: fetchedNote, isLoading, error } = useNote(uid && !invalidId ? uid : '');
-
+console.log('useNote fetch result:', { fetchedNote, isLoading, error, uid, invalidId });
   useEffect(() => {
     if (!uid || invalidId) return; // handled above
     if (fetchedNote) {
-      setCurrentNote(uid);
+      // Convert the API note to local format and add it to the store
+      const localNote = convertApiNoteToLocal(fetchedNote);
+      const { setNotesFromRecords, setCurrentNote: setCurrentNoteInStore } = useEnhancedNoteStore.getState();
+      
+      // Get current notes and add the fetched note
+      const currentNotes = useEnhancedNoteStore.getState().notes;
+      const updatedNotes = { ...currentNotes, [localNote.id]: localNote };
+      
+      setNotesFromRecords(updatedNotes);
+      setCurrentNoteInStore(localNote.id);
     }
-  }, [uid, invalidId, fetchedNote, setCurrentNote]);
+  }, [uid, invalidId, fetchedNote]);
 
   // Redirect on invalid id or hard fetch error (e.g., 404)
   useEffect(() => {

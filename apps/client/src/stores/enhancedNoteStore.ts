@@ -40,7 +40,7 @@ interface EnhancedNoteState {
   tagFilter: string | null;
 
   // Actions
-  setCurrentNote: (id: string | null) => void;
+  setCurrentNote: (note_uid: string | null) => void;
   setNotesFromRecords: (notes: Record<string, Note>) => void; // For hydration
   
   // UI actions
