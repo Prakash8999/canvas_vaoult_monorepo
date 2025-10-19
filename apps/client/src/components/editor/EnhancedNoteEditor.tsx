@@ -404,7 +404,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     <ResizablePanelGroup direction="horizontal" className="h-full">
       {/* Main Editor Area */}
       <ResizablePanel defaultSize={60} minSize={40}>
-        <div className=" h-full flex flex-col">
+        <div className="h-full flex flex-col overflow-hidden">
           {/* Toolbar */}
           <div className="relative flex text-black items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center gap-3">
@@ -769,11 +769,11 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
           )}
           
           {/* Note Editor */}
-          <div className="flex-1 p-4 ">
+          <div className="flex-1 p-4 overflow-auto">
             {currentNote ? (
-              <div className="h-full">
+              <div className="h-full overflow-auto">
                 {/* Title area */}
-                <div className="mb-4 ">
+                <div className="mb-4 flex-shrink-0">
                   {editingName ? (
                     <input
                       className="text-2xl font-bold text-gray-900 px-2 py-1 border-b border-gray-300 focus:outline-none w-full"
@@ -820,7 +820,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                   )}
                 </div>
 
-                <div className="h-full">
+                <div className="flex-1 min-h-0 overflow-auto">
                   <EnhancedEditorJS
                     key={currentNote.id}
                     data={currentNote.content}
@@ -828,7 +828,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                     placeholder="Start writing your note..."
                     alignLeft
                     noBorder
-                    fullHeight
+                    fullHeight={false}
                     mode="full"
                     onImageError={msg => toast.error(msg)}
                     onNavigateToNote={navigateToNote}
@@ -890,9 +890,9 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
 
   // Standalone mode
   return (
-    <div className={`h-screen bg-white flex flex-col overflow-hidden w-full`}>
+    <div className={`h-screen bg-white flex flex-col overflow-auto w-full`}>
       <Header />
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-auto">
         <Sidebar />
         <main className="flex-1" style={{ paddingRight: sidebarOpen ? undefined : 0 }}>
           {mainContent}

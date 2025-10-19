@@ -277,7 +277,7 @@ export function EnhancedEditorJS({
                 return {
                   success: 1,
                   file: {
-                    url: data.url,
+                    url: data.data.url,
                   },
                 };
               } catch (error) {
@@ -515,7 +515,7 @@ export function EnhancedEditorJS({
           border: noBorder ? 'none' : '1px solid #e5e7eb',
           boxShadow: noBorder ? 'none' : '0 1px 4px rgba(0,0,0,0.04)',
           transition: 'box-shadow 0.2s, background 0.2s',
-          overflow: 'visible',
+          overflow: 'auto',
           position: 'relative',
         }}
       >
@@ -533,7 +533,7 @@ export function EnhancedEditorJS({
             width: typeof width === 'number' ? `${width}px` : (width ?? '80%'),
             outline: 'none',
             transition: 'box-shadow 0.2s, background 0.2s',
-            overflow: 'visible',
+            overflow: 'auto',
             position: 'relative',
           }}
           tabIndex={0}
