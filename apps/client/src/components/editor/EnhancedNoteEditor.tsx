@@ -22,6 +22,8 @@ import { Separator } from '@/components/ui/separator';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
 import { useNotes, useNoteMutations } from '@/hooks/useNotes';
+import { useAutoSave } from '@/hooks/useAutoSave';
+import { notesApi } from '@/lib/api/notesApi';
 
 import { 
   Network, 
@@ -41,6 +43,7 @@ import {
   X,
   LayoutTemplate,
   LucideBookTemplate,
+  Save,
 } from 'lucide-react';
 
 interface EnhancedNoteEditorProps {
@@ -70,9 +73,65 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     setSearchQuery,
     searchResults
   } = useEnhancedNoteStore();
+  // Auto-save hook
+  const autoSave = useAutoSave({
+    noteId: currentNoteId,
+    updateNote: updateNoteMutation,
+    intervalMs: 12000, // 12 seconds for periodic auto-save
+    debounceMs: 2000, // 2 seconds debounce for keystroke changes
+    enabled: mode === 'full' // Only enable auto-save in full mode
+  });
+
+  // Save before navigation/note switching
+  const previousNoteIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const previousNoteId = previousNoteIdRef.current;
+    
+    // Save the previous note when switching to a new note
+    if (previousNoteId && previousNoteId !== currentNoteId && notesApi.isNoteDirty(previousNoteId)) {
+      console.log(`[Navigation] Saving note ${previousNoteId} before switching to ${currentNoteId}`);
+      updateNoteMutation({
+        id: previousNoteId,
+        updates: { content: notes[previousNoteId]?.content }
+      }).catch(error => {
+        console.error('Failed to save note before navigation:', error);
+      });
+    }
+    
+    previousNoteIdRef.current = currentNoteId;
+  }, [currentNoteId, updateNoteMutation, notes]);
+
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+S or Cmd+S to save manually
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (currentNoteId && autoSave.isDirty) {
+          autoSave.saveManually();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentNoteId, autoSave]);
   
   // Helper function to navigate to a note
-  const navigateToNote = (noteId: string) => {
+  const navigateToNote = async (noteId: string) => {
+    // Save current note before navigation if it's dirty
+    if (currentNoteId && autoSave.isDirty) {
+      try {
+        await autoSave.saveManually();
+        console.log(`[Navigation] Saved note ${currentNoteId} before switching to ${noteId}`);
+      } catch (error) {
+        console.error('Failed to save before navigation:', error);
+        toast.error('Failed to save current note');
+        return; // Don't navigate if save fails
+      }
+    }
+
     if (embedded) {
       // If embedded, just change the current note
       setCurrentNote(noteId);
@@ -302,25 +361,17 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     }
   };
   
-  const handleNoteChange = async (data: OutputData) => {
+  const handleNoteChange = (data: OutputData) => {
     if (currentNoteId) {
-      console.log(`[NoteChange] Updating note ${currentNoteId} with data:`, data);
-      try {
-        await updateNoteMutation({
-          id: currentNoteId,
-          updates: { content: data }
-        });
-
-        // Force backlinks refresh after content change
-        setTimeout(() => {
-          if (currentNoteId) {
-            console.log(`[NoteChange] Current note after update:`, notes[currentNoteId]);
-          }
-        }, 100);
-      } catch (error) {
-        console.error('Failed to update note:', error);
-        toast.error('Failed to save changes');
-      }
+      console.log(`[NoteChange] Content changed for note ${currentNoteId}`);
+      autoSave.updateContent(data);
+      
+      // Force backlinks refresh after content change
+      setTimeout(() => {
+        if (currentNoteId) {
+          console.log(`[NoteChange] Current note after update:`, notes[currentNoteId]);
+        }
+      }, 100);
     } else {
       console.log(`[NoteChange] No current note ID to update`);
     }
@@ -329,10 +380,8 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
   const handleNameChange = async (newName: string) => {
     if (currentNoteId && newName.trim()) {
       try {
-        await updateNoteMutation({
-          id: currentNoteId,
-          updates: { name: newName.trim() }
-        });
+        await autoSave.updateTitle(newName.trim());
+        toast.success('Note title updated');
       } catch (error) {
         console.error('Failed to update note name:', error);
         toast.error('Failed to update note name');
@@ -343,10 +392,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
   const handleTogglePin = async () => {
     if (currentNote) {
       try {
-        await updateNoteMutation({
-          id: currentNote.id,
-          updates: { isPinned: !currentNote.isPinned }
-        });
+        await autoSave.updatePinned(!currentNote.isPinned);
         toast.success(currentNote.isPinned ? 'Note unpinned' : 'Note pinned');
       } catch (error) {
         console.error('Failed to toggle pin:', error);
@@ -358,10 +404,8 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
   const handleTemplateSelect = async (templateContent: any, templateName: string) => {
     if (currentNoteId) {
       try {
-        await updateNoteMutation({
-          id: currentNoteId,
-          updates: { content: templateContent }
-        });
+        // Update content through auto-save system (will be saved automatically)
+        autoSave.updateContent(templateContent);
         toast.success(`Applied template: ${templateName}`);
       } catch (error) {
         console.error('Failed to apply template:', error);
@@ -592,6 +636,37 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
 				<LucideBookTemplate />
                 <span className="ml-2">Template</span>
               </Button>
+              
+              {/* Manual Save Button */}
+              {currentNote && (
+                <Button
+                  variant={autoSave.isDirty ? "default" : "ghost"}
+                  size="sm"
+                  onClick={autoSave.saveManually}
+                  disabled={autoSave.isSaving || !autoSave.isDirty}
+                  className="relative"
+                >
+                  {autoSave.isSaving ? (
+                    <div className="animate-spin w-4 h-4 border border-gray-300 border-t-blue-500 rounded-full" />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  <span className="ml-2">
+                    {autoSave.isSaving ? 'Saving...' : autoSave.isDirty ? 'Save' : 'Saved'}
+                  </span>
+                  {autoSave.isDirty && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full" />
+                  )}
+                </Button>
+              )}
+
+              {/* Auto-save Status */}
+              {currentNote && autoSave.lastSaved && !autoSave.isDirty && (
+                <div className="text-xs text-green-600 flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  Last saved {autoSave.lastSaved.toLocaleTimeString()}
+                </div>
+              )}
               
               <Button
                 variant="ghost"

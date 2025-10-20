@@ -61,6 +61,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Auto-save tracking
+interface AutoSaveState {
+  [noteId: string]: {
+    lastSaved: Date;
+    isDirty: boolean;
+    pendingSave?: Promise<any>;
+  };
+}
+
+let autoSaveState: AutoSaveState = {};
+
 // Notes API functions
 export const notesApi = {
   // Get all notes with pagination
@@ -118,6 +129,36 @@ export const notesApi = {
     const response = await api.delete(`/note/${id}`);
     return response.data.data;
   },
+
+  // Auto-save utilities
+  markNoteDirty: (noteId: string) => {
+    if (!autoSaveState[noteId]) {
+      autoSaveState[noteId] = {
+        lastSaved: new Date(),
+        isDirty: false
+      };
+    }
+    autoSaveState[noteId].isDirty = true;
+  },
+
+  markNoteClean: (noteId: string) => {
+    if (autoSaveState[noteId]) {
+      autoSaveState[noteId].isDirty = false;
+      autoSaveState[noteId].lastSaved = new Date();
+    }
+  },
+
+  isNoteDirty: (noteId: string): boolean => {
+    return autoSaveState[noteId]?.isDirty || false;
+  },
+
+  getLastSaved: (noteId: string): Date | null => {
+    return autoSaveState[noteId]?.lastSaved || null;
+  },
+
+  cleanupNoteState: (noteId: string) => {
+    delete autoSaveState[noteId];
+  }
 };
 
 // Helper function to convert API note to local note format
