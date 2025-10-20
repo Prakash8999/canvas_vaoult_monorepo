@@ -101,6 +101,8 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
           await performSave(pendingContentRef.current);
         } catch (error) {
           console.error('Failed to save before unload:', error);
+        } finally {
+          isUnloadingRef.current = false;
         }
       }
     };
@@ -177,7 +179,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
     // Set new debounce timer
     debounceTimeoutRef.current = setTimeout(() => {
       console.log(`[AutoSave] Debounce timer fired, saving note: ${noteId}`);
-    //   debouncedContentSave(content);
+      // debouncedContentSave(content);s
     }, debounceMs);
   }, [noteId, debounceMs, debouncedContentSave]);
 
