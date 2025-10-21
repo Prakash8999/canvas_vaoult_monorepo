@@ -12,7 +12,7 @@ export const createNote = async (req: Request, res: Response) => {
 
 		// Validate the request body
 		const validatedData = CreateNoteSchema.parse(req.body);
-
+console.log('Validated data for note creation:', validatedData);	
 		const note = await noteService.createNoteService(validatedData, userId);
 		successHandler(res, "Note created successfully", note, 201);
 	} catch (error) {

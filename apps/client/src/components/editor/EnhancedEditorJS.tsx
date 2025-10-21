@@ -258,44 +258,91 @@ export function EnhancedEditorJS({
     console.log(`[WikiLink] Creating new note: ${noteName}`);
     
     const isFirstNote = Object.keys(freshNotes).length === 0;
-    let newApiNote;
+    // let newApiNote;
+    // if (isFirstNote) {
+    //   newApiNote = await createNote({
+    //     name: noteName,
+    //     content: {
+    //       blocks: [
+    //         {
+    //           type: 'paragraph',
+    //           data: {
+    //             text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
+    //           }
+    //         },
+    //         {
+    //           type: 'list',
+    //           data: {
+    //             style: 'unordered',
+    //             items: [
+    //               'Create links between notes using [[Note Name]] syntax',
+    //               'Add tags to organize your notes with #hashtag',
+    //               'Use the graph view to visualize connections',
+    //               'Run JavaScript and Python code in runnable blocks',
+    //               'Create charts from your data',
+    //               'Pin important notes for quick access'
+    //             ]
+    //           }
+    //         },
+    //         {
+    //           type: 'paragraph',
+    //           data: {
+    //             text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
+    //           }
+    //         }
+    //       ]
+    //     }
+    //   });
+    // } else {
+    //   newApiNote = await createNote({ name: noteName });
+    // }
+
+
+const newNotePayload: any = {
+      name: noteName,
+      is_wiki_link: true,
+      parent_note_id: currentNoteId || null // currentNoteId IS the parent!
+    };
+
+    // 2. Add welcome content only if it's the very first note
     if (isFirstNote) {
-      newApiNote = await createNote({
-        name: noteName,
-        content: {
-          blocks: [
-            {
-              type: 'paragraph',
-              data: {
-                text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
-              }
-            },
-            {
-              type: 'list',
-              data: {
-                style: 'unordered',
-                items: [
-                  'Create links between notes using [[Note Name]] syntax',
-                  'Add tags to organize your notes with #hashtag',
-                  'Use the graph view to visualize connections',
-                  'Run JavaScript and Python code in runnable blocks',
-                  'Create charts from your data',
-                  'Pin important notes for quick access'
-                ]
-              }
-            },
-            {
-              type: 'paragraph',
-              data: {
-                text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
-              }
+      newNotePayload.content = {
+        blocks: [
+          {
+            type: 'paragraph',
+            data: {
+              text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
             }
-          ]
-        }
-      });
-    } else {
-      newApiNote = await createNote({ name: noteName });
+          },
+          {
+            type: 'list',
+            data: {
+              style: 'unordered',
+              items: [
+                'Create links between notes using [[Note Name]] syntax',
+                'Add tags to organize your notes with #hashtag',
+                'Use the graph view to visualize connections',
+                'Run JavaScript and Python code in runnable blocks',
+                'Create charts from your data',
+                'Pin important notes for quick access'
+              ]
+            }
+          },
+          {
+            type: 'paragraph',
+            data: {
+              text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
+            }
+          }
+        ]
+      };
     }
+
+    // 3. Call createNote with the new payload
+    const newApiNote = await createNote(newNotePayload);
+
+
+
 
   // Normalize returned identifiers
   const newNoteId = newApiNote.id?.toString?.() || newApiNote.id + '';

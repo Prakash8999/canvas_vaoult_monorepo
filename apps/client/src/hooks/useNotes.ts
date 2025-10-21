@@ -85,13 +85,32 @@ export const useNoteMutations = () => {
   const queryClient = useQueryClient();
 
   const createNoteMutation = useMutation({
-    mutationFn: async ({ name, content }: { name: string; content?: OutputData }) => {
-      const noteData = {
+    mutationFn: async ({ 
+      name, 
+      content, 
+      is_wiki_link, 
+      parent_note_id 
+    }: { 
+      name: string; 
+      content?: OutputData; 
+      is_wiki_link?: boolean; 
+      parent_note_id?: string | null; 
+    }) => {
+      const noteData: any = {
         title: name,
         content: content || { blocks: [] },
         tags: [],
         pinned: false,
       };
+      
+      // Add WikiLink-specific fields if provided
+      if (is_wiki_link !== undefined) {
+        noteData.is_wiki_link = is_wiki_link;
+      }
+      if (parent_note_id !== undefined) {
+        noteData.parent_note_id = parent_note_id ? parseInt(parent_note_id) : null;
+      }
+      
       return await notesApi.createNote(noteData);
     },
     // Don't invalidate immediately on success to prevent refetch race conditions

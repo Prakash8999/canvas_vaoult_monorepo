@@ -20,6 +20,14 @@ export const NoteSchema = z
 			example: 1,
 			description: 'ID of the user who owns the note',
 		}),
+		is_wiki_link: z.boolean().optional().default(false).openapi({
+			example: false,
+			description: 'Indicates if the note is a wiki link',
+		}),
+		parent_note_id: z.number().int().nullable().optional().openapi({
+			example: null,
+			description: 'Optional parent note ID for hierarchical organization for wiki links notes',
+		}),
 
 		title: z.string().min(1).openapi({
 			example: 'Weekly Summary',
@@ -113,6 +121,8 @@ export class Note
 	public content!: Record<string, any>;
 	public attachment_ids?: number[];
 	public tags?: string[];
+	public parent_note_id?: number | null;
+	public is_wiki_link!: boolean;
 	public version!: number;
 	public pinned!: boolean;
 	public created_at!: Date;
@@ -138,6 +148,17 @@ Note.init(
 		title: {
 			type: DataTypes.TEXT,
 			allowNull: false,
+		},
+		
+		parent_note_id: {
+			type: DataTypes.INTEGER,
+			allowNull: true,
+			comment: 'Optional parent note ID for hierarchical organization for wiki links notes',
+		},
+		is_wiki_link: {
+			type: DataTypes.BOOLEAN,
+			allowNull: false,
+			defaultValue: false
 		},
 		content: {
 			type: DataTypes.JSON,

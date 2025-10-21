@@ -23,6 +23,8 @@ export interface CreateNoteRequest {
   content: OutputData;
   tags?: string[];
   pinned?: boolean;
+  is_wiki_link?: boolean;
+  parent_note_id?: number | null;
 }
 
 export interface UpdateNoteRequest {
@@ -197,12 +199,22 @@ export const convertApiNoteToLocal = (apiNote: any) => {
 
 // Helper function to convert local note to API format
 export const convertLocalNoteToApi = (localNote: any): CreateNoteRequest | UpdateNoteRequest => {
-  return {
+  const result: any = {
     title: localNote.name,
     content: localNote.content,
     tags: localNote.tags || [],
     pinned: localNote.isPinned || false,
   };
+  
+  // Add WikiLink-specific fields if present
+  if (localNote.is_wiki_link !== undefined) {
+    result.is_wiki_link = localNote.is_wiki_link;
+  }
+  if (localNote.parent_note_id !== undefined) {
+    result.parent_note_id = localNote.parent_note_id;
+  }
+  
+  return result;
 };
 
 // Calculate word count from EditorJS content
