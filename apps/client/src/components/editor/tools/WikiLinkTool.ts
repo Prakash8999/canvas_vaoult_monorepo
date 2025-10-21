@@ -3,12 +3,15 @@
  * Handles [[Link]] syntax with autocomplete
  */
 
-import { API, InlineTool, InlineToolConstructorOptions } from '@editorjs/editorjs';
+import { API, InlineTool, InlineToolConstructorOptions, OutputData } from '@editorjs/editorjs';
 
 interface WikiLinkConfig {
-  onGetNotes?: () => Array<{ id: string; name: string }>;
+  onGetNotes?: () => Array<{ id: string; name: string; note_uid?: string }>;
   onCreateNote?: (name: string) => void;
-  onNavigateToNote?: (name: string, noteId?: string | null) => void;
+  // noteId may be API numeric id or the server-generated note_uid
+  onNavigateToNote?: (name: string, noteId?: string | null, noteUid?: string | null) => void;
+  onSaveCurrentNote?: () => Promise<void>; // New callback to save current note
+  onWikiLinkCreated?: (data: OutputData) => Promise<void>;
 }
 
 export class WikiLinkTool implements InlineTool {
@@ -25,7 +28,7 @@ export class WikiLinkTool implements InlineTool {
     return {
       'wiki-link': {
         'data-note-name': true,
-        'data-note-id': true,
+        'data-note-uid': true,
         class: true
       }
     };
@@ -74,7 +77,7 @@ export class WikiLinkTool implements InlineTool {
     return buttonEl;
   }
   
-  surround(range: Range): void {
+  async surround(range: Range): Promise<void> {
     // Check if we're unlinking an existing wiki link
     const selection = window.getSelection();
     if (selection && this.checkState(selection)) {
@@ -115,6 +118,34 @@ export class WikiLinkTool implements InlineTool {
       selection?.removeAllRanges();
       selection?.addRange(newRange);
     }
+
+    // If a save callback was provided by the host (EnhancedEditor/EnhancedNoteEditor),
+    // call it to persist the editor content immediately (this will hit the update API).
+    // if (this.config.onSaveCurrentNote) {
+    //   try {
+    //     console.log('[WikiLinkTool] Calling onSaveCurrentNote to persist content after creating wiki-link (awaiting)');
+    //     await (this.config.onSaveCurrentNote as () => Promise<void>)();
+    //     console.log('[WikiLinkTool] onSaveCurrentNote completed');
+    //   } catch (err) {
+    //     console.error('[WikiLinkTool] onSaveCurrentNote failed:', err);
+    //   }
+    // }
+
+
+if (this.config.onWikiLinkCreated) {
+      try {
+        // We must get the fresh data from the editor *now*
+        const savedData = await this.api.saver.save();
+        
+        console.log('[WikiLinkTool] Calling onWikiLinkCreated to persist content (awaiting)');
+        await this.config.onWikiLinkCreated(savedData);
+        console.log('[WikiLinkTool] onWikiLinkCreated completed');
+      } catch (err) {
+        console.error('[WikiLinkTool] onWikiLinkCreated failed:', err);
+      }
+    }
+
+
   }
   
   checkState(selection: Selection): boolean {
@@ -154,16 +185,29 @@ export class WikiLinkTool implements InlineTool {
     link.className = 'wiki-link inline-block px-1 py-0.5 mx-0.5 bg-blue-100 text-blue-700 rounded cursor-pointer hover:bg-blue-200 transition-colors';
     link.setAttribute('data-note-name', text);
     link.setAttribute('data-note-id', ''); // Will be set when note is created/found
+    link.setAttribute('data-note-uid', ''); // Will be set when note is created/found
     link.textContent = `[[${text}]]`;
     link.contentEditable = 'false';
     
-    // Try to find existing note and set ID immediately
+    // Try to find existing note and set ID and UID immediately
     if (this.config.onGetNotes) {
       const notes = this.config.onGetNotes();
       const existingNote = notes.find(note => note.name === text);
       if (existingNote) {
         link.setAttribute('data-note-id', existingNote.id);
+        if (existingNote.note_uid) {
+          link.setAttribute('data-note-uid', existingNote.note_uid);
+        }
       }
+    }
+    // Log when a new wiki link element is created for debugging
+    try {
+      const existingId = link.getAttribute('data-note-id') || '';
+      const existingUid = link.getAttribute('data-note-uid') || '';
+      console.log(`[WikiLinkTool] createWikiLink -> created wiki-link for "${text}" (data-note-id=${existingId}, data-note-uid=${existingUid})`);
+    } catch (err) {
+      // swallow logging errors
+      console.warn('[WikiLinkTool] createWikiLink logging failed', err);
     }
     
     // Set up event delegation for click handling
@@ -178,7 +222,7 @@ export class WikiLinkTool implements InlineTool {
     (this as any).__eventDelegationSetup = true;
     
     // Use event delegation on document to handle all wiki-link clicks
-    const handleWikiLinkClick = (e: Event) => {
+    const handleWikiLinkClick = async (e: Event) => {
       const target = e.target as HTMLElement;
       const wikiLink = target.closest('wiki-link');
       
@@ -188,11 +232,23 @@ export class WikiLinkTool implements InlineTool {
         e.stopImmediatePropagation();
         
         const noteId = wikiLink.getAttribute('data-note-id') || '';
+        const noteUid = wikiLink.getAttribute('data-note-uid') || '';
         const noteName = wikiLink.getAttribute('data-note-name') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
-        
+
+        // Auto-save current note before navigation if callback provided
+        if (this.config.onSaveCurrentNote) {
+          try {
+            await this.config.onSaveCurrentNote();
+            console.log('[WikiLinkTool] Auto-saved current note before navigation');
+          } catch (error) {
+            console.error('[WikiLinkTool] Failed to save current note before navigation:', error);
+            // Continue with navigation even if save fails
+          }
+        }
+
         if (this.config.onNavigateToNote) {
-          // Pass both name and ID - the handler will decide what to do
-          this.config.onNavigateToNote(noteName, noteId);
+          // Pass name, numeric id (if any), and canonical note_uid (if any)
+          this.config.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
         }
       }
     };
@@ -210,7 +266,25 @@ export class WikiLinkTool implements InlineTool {
         const content = wikiLink.textContent || '';
         const match = content.match(/\[\[([^\]]+)\]\]/);
         if (match) {
-          wikiLink.setAttribute('data-note-name', match[1]);
+          const newNoteName = match[1];
+          wikiLink.setAttribute('data-note-name', newNoteName);
+          
+          // If the note name changed, clear the existing note_uid and note_id
+          // since this might now refer to a different note
+          wikiLink.setAttribute('data-note-uid', '');
+          wikiLink.setAttribute('data-note-id', '');
+          
+          // Try to find existing note with the new name and update IDs
+          if (this.config.onGetNotes) {
+            const notes = this.config.onGetNotes();
+            const existingNote = notes.find(note => note.name === newNoteName);
+            if (existingNote) {
+              wikiLink.setAttribute('data-note-id', existingNote.id);
+              if (existingNote.note_uid) {
+                wikiLink.setAttribute('data-note-uid', existingNote.note_uid);
+              }
+            }
+          }
         }
       }
     });

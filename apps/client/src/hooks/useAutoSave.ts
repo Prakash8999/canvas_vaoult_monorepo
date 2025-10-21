@@ -36,6 +36,7 @@ interface AutoSaveStatus {
   lastSaved: Date | null;
   isDirty: boolean;
   saveManually: () => Promise<void>;
+  saveContentNow: (content: OutputData) => Promise<void>;
   markDirty: () => void;
   updateContent: (content: OutputData) => void;
   updateTitle: (title: string) => Promise<void>;
@@ -179,7 +180,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
     // Set new debounce timer
     debounceTimeoutRef.current = setTimeout(() => {
       console.log(`[AutoSave] Debounce timer fired, saving note: ${noteId}`);
-      // debouncedContentSave(content);s
+      // debouncedContentSave(content);
     }, debounceMs);
   }, [noteId, debounceMs, debouncedContentSave]);
 
@@ -270,11 +271,27 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
     };
   }, [noteId]);
 
+
+  const saveContentNow = useCallback(async (contentToSave: OutputData) => {
+    if (!noteId) return;
+
+    // Clear any pending debounced save
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = undefined;
+    }
+    
+    console.log(`[AutoSave] Instant save triggered for note: ${noteId}`);
+    // Use the content passed to us, not pendingContentRef
+    await performSave(contentToSave);
+  }, [noteId, performSave]);
+
   return {
     isSaving,
     lastSaved: lastSaved || notesApi.getLastSaved(noteId || ''),
     isDirty: isDirty || notesApi.isNoteDirty(noteId || ''),
     saveManually,
+    saveContentNow,
     markDirty,
     updateContent,
     updateTitle,

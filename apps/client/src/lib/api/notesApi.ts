@@ -112,6 +112,19 @@ export const notesApi = {
     return response.data.data;
   },
 
+  // Check if a note exists by note_uid (returns boolean)
+  checkNoteExists: async (noteUid: string): Promise<boolean> => {
+    try {
+      await api.get(`/note/${noteUid}`);
+      return true;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return false;
+      }
+      throw error; // Re-throw other errors
+    }
+  },
+
   // Create a new note
   createNote: async (noteData: CreateNoteRequest): Promise<ApiNote> => {
     const response = await api.post('/note', noteData);

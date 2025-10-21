@@ -17,6 +17,7 @@ import ChartTool from './tools/ChartTool';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
 import { codeExecutionService } from '@/services/codeExecutionService';
 import { useNoteMutations } from '@/hooks/useNotes';
+import { notesApi, convertApiNoteToLocal } from '@/lib/api/notesApi';
 import '../../styles/editorjs-custom.css';
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
@@ -33,6 +34,8 @@ interface EnhancedEditorJSProps {
   width?: string | number;
   mode?: 'full' | 'light'; // New prop to control feature set
   onNavigateToNote?: (noteId: string) => void; // New prop for navigation
+  onSaveCurrentNote?: () => Promise<void>; // New prop for auto-save callback
+  onWikiLinkCreated?: (data: OutputData) => Promise<void>;
 }
 
 export function EnhancedEditorJS({ 
@@ -47,6 +50,9 @@ export function EnhancedEditorJS({
   width,
   mode = 'full', // Default to full feature set
   onNavigateToNote,
+  onSaveCurrentNote,
+  onWikiLinkCreated,
+
 }: EnhancedEditorJSProps) {
   const editorRef = useRef<EditorJS | null>(null);
   const holderRef = useRef<HTMLDivElement>(null);
@@ -63,7 +69,7 @@ export function EnhancedEditorJS({
   const { createNote } = useNoteMutations();
   
   // Store latest props in a ref to avoid recreating the editor when props change
-  const propsRef = useRef({ data, onChange, placeholder, readOnly, onImageError });
+  const propsRef = useRef({ data, onChange, placeholder, readOnly, onImageError , onWikiLinkCreated });
   
   // Set the mode in the store when component mode changes
   useEffect(() => {
@@ -110,6 +116,7 @@ export function EnhancedEditorJS({
     return Object.values(notes).map(note => ({
       id: note.id,
       name: note.name,
+      note_uid: (note as any).note_uid, // Include note_uid for WikiLink matching
     }));
   }, [notes]);
   
@@ -140,79 +147,225 @@ export function EnhancedEditorJS({
     });
   }, [notes]);
   
-  const handleNavigateToNote = useCallback(async (noteName: string, noteId?: string | null) => {
+  const handleNavigateToNote = useCallback(async (noteName: string, noteId?: string | null, noteUid?: string | null) => {
     const freshNotes = useEnhancedNoteStore.getState().notes;
+
+    // Prefer note_uid navigation when available in the wiki link
+    if (noteUid && noteUid.trim() !== '') {
+      // Find local note by note_uid
+      const existingByUid = Object.values(freshNotes).find(n => (n as any).note_uid === noteUid || (n as any).note_uid === String(noteUid));
+      if (existingByUid) {
+        const targetId = existingByUid.id;
+        // Update any wiki-link elements with the id and uid for consistency
+        updateAllWikiLinkIds();
+        const wikiUidLinks = document.querySelectorAll(`wiki-link[data-note-uid="${noteUid}"]`);
+        wikiUidLinks.forEach(link => {
+          link.setAttribute('data-note-id', targetId);
+          link.setAttribute('data-note-uid', noteUid as string);
+        });
+
+        // Prefer navigating by note_uid (routes expect it); fall back to numeric id
+        const routeId = (existingByUid as any).note_uid || targetId;
+        if (onNavigateToNote) {
+          onNavigateToNote(routeId);
+        } else {
+          setCurrentNote(targetId);
+        }
+        return;
+      }
+
+      // If note_uid was present but not in local store, check if it exists on server
+      try {
+        const noteExists = await notesApi.checkNoteExists(noteUid);
+        if (noteExists) {
+          console.log(`[WikiLink] Note with uid ${noteUid} exists on server, navigating`);
+          // Navigate to existing note
+          if (onNavigateToNote) {
+            onNavigateToNote(noteUid);
+          } else {
+            // For embedded mode, we might need to fetch the note first
+            try {
+              const serverNote = await notesApi.getNote(noteUid);
+              const localNote = convertApiNoteToLocal(serverNote);
+              setCurrentNote(localNote.id);
+            } catch (fetchError) {
+              console.error('Failed to fetch existing note:', fetchError);
+            }
+          }
+          return;
+        } else {
+          console.log(`[WikiLink] Note with uid ${noteUid} does not exist on server`);
+          // Clear the stale note_uid from wiki-link elements since it doesn't exist
+          const wikiLinks = document.querySelectorAll(`wiki-link[data-note-uid="${noteUid}"]`);
+          wikiLinks.forEach(link => {
+            link.setAttribute('data-note-uid', '');
+            link.setAttribute('data-note-id', '');
+          });
+        }
+      } catch (error) {
+        console.error('Error checking note existence:', error);
+        // On error, clear stale data and proceed with creation
+        const wikiLinks = document.querySelectorAll(`wiki-link[data-note-uid="${noteUid}"]`);
+        wikiLinks.forEach(link => {
+          link.setAttribute('data-note-uid', '');
+          link.setAttribute('data-note-id', '');
+        });
+      }
+    }
+
+    // If numeric id provided and exists in store, navigate
     if (noteId && noteId.trim() !== '' && freshNotes[noteId]) {
+      const local = freshNotes[noteId];
+      const routeId = (local as any).note_uid || noteId;
       if (onNavigateToNote) {
-        onNavigateToNote(noteId);
+        onNavigateToNote(routeId);
       } else {
         setCurrentNote(noteId);
       }
       return;
     }
-    if (noteId && noteId.trim() !== '' && !notes[noteId]) {
-      const wikiLinks = document.querySelectorAll(`wiki-link[data-note-id="${noteId}"]`);
-      wikiLinks.forEach(link => {
-        link.setAttribute('data-note-id', '');
-      });
-    }
+
+    // If an existing note by name is found, prefer it
     const existingNote = Object.values(freshNotes).find(note => note.name === noteName);
     if (existingNote) {
-      updateWikiLinksWithId(noteName, existingNote.id);
-      if (onNavigateToNote) {
-        onNavigateToNote(existingNote.id);
-      } else {
-        setCurrentNote(existingNote.id);
-      }
-    } else {
-      const isFirstNote = Object.keys(freshNotes).length === 0;
-      let newApiNote;
-      if (isFirstNote) {
-        newApiNote = await createNote({
-          name: noteName,
-          content: {
-            blocks: [
-              {
-                type: 'paragraph',
-                data: {
-                  text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
-                }
-              },
-              {
-                type: 'list',
-                data: {
-                  style: 'unordered',
-                  items: [
-                    'Create links between notes using [[Note Name]] syntax',
-                    'Add tags to organize your notes with #hashtag',
-                    'Use the graph view to visualize connections',
-                    'Run JavaScript and Python code in runnable blocks',
-                    'Create charts from your data',
-                    'Pin important notes for quick access'
-                  ]
-                }
-              },
-              {
-                type: 'paragraph',
-                data: {
-                  text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
-                }
-              }
-            ]
-          }
+      // If API exposes note_uid, add it to wiki-link elements
+      if ((existingNote as any).note_uid) {
+        const uid = (existingNote as any).note_uid;
+        const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+        wikiLinks.forEach(link => {
+          link.setAttribute('data-note-id', existingNote.id);
+          link.setAttribute('data-note-uid', uid);
         });
+        const routeId = uid || existingNote.id;
+        if (onNavigateToNote) {
+          onNavigateToNote(routeId);
+        } else {
+          setCurrentNote(existingNote.id);
+        }
       } else {
-        newApiNote = await createNote({ name: noteName });
+        updateWikiLinksWithId(noteName, existingNote.id);
+        if (onNavigateToNote) {
+          onNavigateToNote(existingNote.id);
+        } else {
+          setCurrentNote(existingNote.id);
+        }
       }
-      const newNoteId = newApiNote.id?.toString?.() || newApiNote.id + '';
-      if (onNavigateToNote) {
-        onNavigateToNote(newNoteId);
-      } else {
-        setCurrentNote(newNoteId);
-      }
-      updateWikiLinksWithId(noteName, newNoteId);
+      return;
     }
-  }, [setCurrentNote, createNote, onNavigateToNote, updateWikiLinksWithId, notes]);
+
+    // No existing note: create one. Before creating, save current editor content to persist
+    // the WikiLink that was just clicked (so the new note_uid can be saved to current content)
+    console.log(`[WikiLink] Creating new note: ${noteName}`);
+    
+    const isFirstNote = Object.keys(freshNotes).length === 0;
+    let newApiNote;
+    if (isFirstNote) {
+      newApiNote = await createNote({
+        name: noteName,
+        content: {
+          blocks: [
+            {
+              type: 'paragraph',
+              data: {
+                text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
+              }
+            },
+            {
+              type: 'list',
+              data: {
+                style: 'unordered',
+                items: [
+                  'Create links between notes using [[Note Name]] syntax',
+                  'Add tags to organize your notes with #hashtag',
+                  'Use the graph view to visualize connections',
+                  'Run JavaScript and Python code in runnable blocks',
+                  'Create charts from your data',
+                  'Pin important notes for quick access'
+                ]
+              }
+            },
+            {
+              type: 'paragraph',
+              data: {
+                text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
+              }
+            }
+          ]
+        }
+      });
+    } else {
+      newApiNote = await createNote({ name: noteName });
+    }
+
+  // Normalize returned identifiers
+  const newNoteId = newApiNote.id?.toString?.() || newApiNote.id + '';
+  const newNoteUid = (newApiNote as any).note_uid || '';
+
+  // Log the full API response for debugging and the generated note_uid
+  console.log('[WikiLink] createNote response:', newApiNote);
+  console.log(`[WikiLink] Created note with ID: ${newNoteId}, UID: ${newNoteUid}`);
+
+    // Update wiki-link DOM elements with the canonical uid and numeric id
+    const wikiLinksToUpdate = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+    wikiLinksToUpdate.forEach(link => {
+      if (newNoteId) link.setAttribute('data-note-id', newNoteId);
+      if (newNoteUid) link.setAttribute('data-note-uid', newNoteUid);
+    });
+
+    console.log(`[WikiLink] Updated ${wikiLinksToUpdate.length} WikiLink elements with new note_uid: ${newNoteUid}`);
+
+    // Attempt to persist the updated wiki-link attributes by triggering editor save
+    // This is critical to ensure the note_uid is saved back to the current note's content
+    
+    
+    // try {
+    //   if ((editorRef as any).current && typeof (editorRef as any).current.save === 'function') {
+    //     const savedData = await editorRef.current!.save();
+    //     console.log('[WikiLink] Successfully saved editor content with updated note_uid');
+        
+    //     // Trigger onChange to update the store and trigger auto-save
+    //     if (onChange) {
+    //       onChange(savedData);
+    //     }
+    //   }
+    // } catch (err) {
+    //   console.warn('Failed to save editor after updating wiki links with uid:', err);
+    // }
+
+
+    try {
+      if (editorRef.current && typeof editorRef.current.save === 'function') {
+        const savedData = await editorRef.current!.save();
+        console.log('[WikiLink] Got fresh editor content with new note_uid');
+        
+        // 1. Trigger onChange to update the store's pending state (sets pendingContentRef.current)
+        if (onChange) {
+          onChange(savedData);
+        }
+
+        // 2. NOW, manually trigger the save using the onSaveCurrentNote prop
+        //    which is connected to autoSave.saveManually()
+        if (onSaveCurrentNote) {
+          console.log('[WikiLink] Calling onSaveCurrentNote to persist note_uid before navigation...');
+          await onSaveCurrentNote(); // This will save the content set by onChange
+          console.log('[WikiLink] ...Save complete.');
+        } else {
+          console.warn('[WikiLink] onSaveCurrentNote is not defined. Cannot persist note_uid before navigation.');
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to save editor after updating wiki links with uid:', err);
+    }
+
+    // Navigate to the newly created note using note_uid when possible (routes expect note_uid)
+    // Prefer routing by note_uid when available
+    const routeTarget = newNoteUid || newNoteId;
+    if (onNavigateToNote) {
+      onNavigateToNote(routeTarget);
+    } else {
+      setCurrentNote(newNoteId);
+    }
+  }, [setCurrentNote, createNote, onNavigateToNote, updateWikiLinksWithId, notes, editorRef, onChange, onSaveCurrentNote]);
   console.log('localStorage', localStorage.getItem('auth_token'));
   const handleCodeExecution = useCallback(async (code: string, language: string) => {
     return await codeExecutionService.executeCode(code, language);
@@ -303,6 +456,8 @@ export function EnhancedEditorJS({
         config: {
           onGetNotes: getAvailableNotes,
           onNavigateToNote: handleNavigateToNote,
+          onSaveCurrentNote: onSaveCurrentNote, // Add auto-save callback
+          onWikiLinkCreated: propsRef.current.onWikiLinkCreated,
         }
       },
       runnableCode: {
@@ -355,12 +510,12 @@ export function EnhancedEditorJS({
         updateAllWikiLinkIds();
       }, 500);
     });
-  }, [mode, getAvailableNotes, handleNavigateToNote, handleCodeExecution, updateAllWikiLinkIds]);
+  }, [mode, getAvailableNotes, handleNavigateToNote, handleCodeExecution, updateAllWikiLinkIds, onSaveCurrentNote]);
 
   // Keep propsRef up to date when props change
   useEffect(() => {
-    propsRef.current = { data, onChange, placeholder, readOnly, onImageError };
-  }, [data, onChange, placeholder, readOnly, onImageError]);
+    propsRef.current = { data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated };
+  }, [data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated]);
 
   // Initialize editor only once on mount
   useEffect(() => {

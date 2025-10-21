@@ -25,14 +25,14 @@ import { useNotes, useNoteMutations } from '@/hooks/useNotes';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { notesApi } from '@/lib/api/notesApi';
 
-import { 
-  Network, 
-  Hash, 
-  Link2, 
-  Pin, 
-  PinOff, 
-  Plus, 
-  Search, 
+import {
+  Network,
+  Hash,
+  Link2,
+  Pin,
+  PinOff,
+  Plus,
+  Search,
   Calendar,
   FileText,
   BookOpen,
@@ -55,7 +55,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
   const navigate = useNavigate();
   const location = useLocation();
   const sidebarOpen = useWorkspaceStore(state => state.sidebarOpen);
-  
+
   const { data: notes = {} } = useNotes();
   const { createNote, updateNote: updateNoteMutation, isCreating, isUpdating } = useNoteMutations();
 
@@ -86,7 +86,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
   const previousNoteIdRef = useRef<string | null>(null);
   useEffect(() => {
     const previousNoteId = previousNoteIdRef.current;
-    
+
     // Save the previous note when switching to a new note
     if (previousNoteId && previousNoteId !== currentNoteId && notesApi.isNoteDirty(previousNoteId)) {
       console.log(`[Navigation] Saving note ${previousNoteId} before switching to ${currentNoteId}`);
@@ -97,7 +97,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
         console.error('Failed to save note before navigation:', error);
       });
     }
-    
+
     previousNoteIdRef.current = currentNoteId;
   }, [currentNoteId, updateNoteMutation, notes]);
 
@@ -117,7 +117,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentNoteId, autoSave]);
-  
+
   // Helper function to navigate to a note
   const navigateToNote = async (noteId: string) => {
     // Save current note before navigation if it's dirty
@@ -140,14 +140,14 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       navigate(`/note/${noteId}`);
     }
   };
-  
+
   const [editingName, setEditingName] = useState(false);
   const [newNoteName, setNewNoteName] = useState('');
   const [showNotesList, setShowNotesList] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  
+
   const notesListRef = useRef<HTMLDivElement>(null);
-  
+
   const currentNote = currentNoteId ? notes[currentNoteId] : null;
   const pinnedNotes = getPinnedNotes();
   const allNotes = Object.values(notes).sort((a, b) => b.modifiedAt - a.modifiedAt);
@@ -176,19 +176,19 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       document.removeEventListener('keydown', handleEscapeKey);
     };
   }, [showNotesList]);
-  
 
-  
+
+
   // Temporary: Add clear storage function for testing
   const clearStorageForTesting = () => {
     localStorage.removeItem('vcw:enhancedNotes');
     localStorage.removeItem('vcw:currentNoteId');
     window.location.reload();
   };
-  
+
   // Expose to global for testing
   (window as any).clearStorageForTesting = clearStorageForTesting;
-  
+
   // Debug function to check backlinks
   const debugBacklinks = (noteId?: string) => {
     const targetId = noteId || currentNoteId;
@@ -196,53 +196,53 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       console.log('No note ID provided');
       return;
     }
-    
+
     const targetNote = notes[targetId];
     if (!targetNote) {
       console.log('Note not found:', targetId);
       return;
     }
-    
+
     console.log('=== BACKLINK DEBUG ===');
     console.log('Target Note:', targetNote.name, `(${targetId})`);
     console.log('All Notes:', Object.values(notes).map(n => ({ name: n.name, id: n.id })));
-    
+
     // Special check for welcome note
     const welcomeNote = Object.values(notes).find(n => n.name.includes('Welcome') || n.name.includes('Knowledge Base'));
     if (welcomeNote) {
       console.log('\n🔍 SPECIAL WELCOME NOTE CHECK:');
       console.log('Welcome note:', welcomeNote.name, `(${welcomeNote.id})`);
       console.log('Welcome note content:', JSON.stringify(welcomeNote.content, null, 2));
-      
+
       const welcomeLinks = useEnhancedNoteStore.getState().extractLinks(welcomeNote.content);
       console.log('Links from welcome note:', welcomeLinks);
-      
+
       welcomeNote.content.blocks.forEach((block, index) => {
         if (block.data?.text) {
           console.log(`Welcome Block ${index}:`, block.data.text);
-          
+
           // Check for both formats
           const hasPlainLink = block.data.text.includes(`[[${targetNote.name}]]`);
           const hasHtmlLink = block.data.text.includes(`data-note-name="${targetNote.name}"`);
-          
+
           console.log(`  - Has plain [[${targetNote.name}]]:`, hasPlainLink);
           console.log(`  - Has HTML wiki-link:`, hasHtmlLink);
         }
       });
     }
-    
+
     // Check each note for links to target
     Object.values(notes).forEach(note => {
       if (note.id === targetId) return;
-      
+
       console.log(`\n--- Checking note: ${note.name} (${note.id}) ---`);
-      
+
       const links = useEnhancedNoteStore.getState().extractLinks(note.content);
       console.log('Extracted links:', links);
-      
+
       const hasLinkToTarget = links.includes(targetNote.name);
       console.log(`Has link to "${targetNote.name}":`, hasLinkToTarget);
-      
+
       // Also check raw text for debugging
       note.content.blocks.forEach((block, index) => {
         if (block.data?.text) {
@@ -256,13 +256,13 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
         }
       });
     });
-    
+
     const backlinks = useEnhancedNoteStore.getState().getBacklinksWithDOM(targetId);
     console.log('\nFinal backlinks:', backlinks.map(n => n.name));
   };
-  
+
   (window as any).debugBacklinks = debugBacklinks;
-  
+
   // Welcome content for first note
   const getWelcomeContent = () => ({
     blocks: [
@@ -294,9 +294,9 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       }
     ]
   });
-  
 
-  
+
+
   // Create initial note if none exists (guarded to avoid duplicates on refresh)
   const WELCOME_SEEDED_KEY = 'vcw:welcomeNoteSeeded';
   useEffect(() => {
@@ -332,7 +332,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     createInitialNote();
     return () => { cancelled = true; };
   }, [mode, notes, createNote, embedded, setCurrentNote, navigate]);
-  
+
   const handleCreateNote = async () => {
     if (newNoteName.trim()) {
       try {
@@ -360,12 +360,12 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       }
     }
   };
-  
+
   const handleNoteChange = (data: OutputData) => {
     if (currentNoteId) {
       console.log(`[NoteChange] Content changed for note ${currentNoteId}`);
       autoSave.updateContent(data);
-      
+
       // Force backlinks refresh after content change
       setTimeout(() => {
         if (currentNoteId) {
@@ -376,7 +376,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       console.log(`[NoteChange] No current note ID to update`);
     }
   };
-  
+
   const handleNameChange = async (newName: string) => {
     if (currentNoteId && newName.trim()) {
       try {
@@ -388,7 +388,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       }
     }
   };
-  
+
   const handleTogglePin = async () => {
     if (currentNote) {
       try {
@@ -400,7 +400,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       }
     }
   };
-  
+
   const handleTemplateSelect = async (templateContent: any, templateName: string) => {
     if (currentNoteId) {
       try {
@@ -413,7 +413,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       }
     }
   };
-  
+
   // Show simplified interface for light mode
   if (mode === 'light') {
     return (
@@ -424,7 +424,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
             Canvas Document
           </h1>
         </div>
-        
+
         <div className="w-full max-w-2xl mx-auto">
           <EnhancedEditorJS
             key={currentNote?.id}
@@ -437,12 +437,14 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
             mode="light"
             onImageError={msg => toast.error(msg)}
             onNavigateToNote={navigateToNote}
+            onSaveCurrentNote={autoSave.saveManually}
+            onWikiLinkCreated={autoSave.saveContentNow}
           />
         </div>
       </div>
     );
   }
-  
+
   // Main content for full editor
   const mainContent = (
     <ResizablePanelGroup direction="horizontal" className="h-full">
@@ -467,7 +469,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                   </Badge>
                 )}
               </Button>
-              
+
               {/* Enhanced Global Search */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -491,7 +493,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                     <X size={14} />
                   </button>
                 )}
-                
+
                 {/* Enhanced Search Results Dropdown */}
                 {searchQuery && searchResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
@@ -506,7 +508,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                         </Badge>
                       </div>
                     </div>
-                    
+
                     {/* Results */}
                     <div className="max-h-80 overflow-y-auto">
                       {searchResults.map(note => (
@@ -528,7 +530,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                                   {note.name}
                                 </span>
                               </div>
-                              
+
                               <div className="text-xs text-gray-500 flex items-center gap-3 mb-2">
                                 <span className="flex items-center gap-1">
                                   <FileText size={10} />
@@ -539,7 +541,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                                   {new Date(note.modifiedAt).toLocaleDateString()}
                                 </span>
                               </div>
-                              
+
                               {note.tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1">
                                   {note.tags.slice(0, 3).map(tag => (
@@ -555,7 +557,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                                 </div>
                               )}
                             </div>
-                            
+
                             <div className="ml-3 flex-shrink-0">
                               <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                             </div>
@@ -565,7 +567,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                     </div>
                   </div>
                 )}
-                
+
                 {/* Enhanced No Results Message */}
                 {searchQuery && searchResults.length === 0 && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
@@ -582,7 +584,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                 )}
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               {/* Panel toggles */}
               <Button
@@ -592,7 +594,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
               >
                 <Link2 size={16} />
               </Button>
-              
+
               <Button
                 variant={showTags ? "default" : "ghost"}
                 size="sm"
@@ -600,7 +602,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
               >
                 <Hash size={16} />
               </Button>
-              
+
               <Button
                 variant={showGraphView ? "default" : "ghost"}
                 size="sm"
@@ -608,11 +610,11 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
               >
                 <Network size={16} />
               </Button>
-              
 
-              
+
+
               <Separator orientation="vertical" className="h-6" />
-              
+
               {/* Note actions */}
               {currentNote && (
                 <Button
@@ -624,7 +626,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                   {currentNote.isPinned ? <Pin size={16} /> : <PinOff size={16} />}
                 </Button>
               )}
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -633,10 +635,10 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                 {/* <FileTemplate size={16} />
 				 */}
 
-				<LucideBookTemplate />
+                <LucideBookTemplate />
                 <span className="ml-2">Template</span>
               </Button>
-              
+
               {/* Manual Save Button */}
               {currentNote && (
                 <Button
@@ -667,7 +669,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                   Last saved {autoSave.lastSaved.toLocaleTimeString()}
                 </div>
               )}
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -696,7 +698,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                 <Plus size={16} />
                 <span className="ml-2">New</span>
               </Button>
-              
+
               {/* Temporary debug button */}
               {/* <Button
                 variant="ghost"
@@ -711,7 +713,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
               >
                 Debug
               </Button> */}
-              
+
               {/* <Button
                 variant="ghost"
                 size="sm"
@@ -722,80 +724,103 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
               </Button> */}
             </div>
           </div>
-          
+
           {/* Enhanced Notes List Panel - Absolute Positioned Overlay */}
           {showNotesList && (
             <>
               {/* Backdrop */}
-              <div 
+              <div
                 className="fixed inset-0 bg-black/80 z-40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
                 onClick={() => setShowNotesList(false)}
               />
-              
+
               {/* Notes Panel */}
-              <div 
+              <div
                 ref={notesListRef}
                 className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50 w-full max-w-2xl animate-in fade-in zoom-in-95 duration-200"
               >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b border-gray-200">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <FileText size={18} />
-                    Your Notes
-                  </h3>
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => setShowNotesList(false)}
-                    className="hover:bg-white/50"
-                  >
-                    <X size={16} />
-                  </Button>
+                {/* Header */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <FileText size={18} />
+                      Your Notes
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowNotesList(false)}
+                      className="hover:bg-white/50"
+                    >
+                      <X size={16} />
+                    </Button>
+                  </div>
+
+                  {/* Quick Create */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Create new note..."
+                      value={newNoteName}
+                      onChange={(e) => setNewNoteName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleCreateNote();
+                        } else if (e.key === 'Escape') {
+                          setShowNotesList(false);
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 text-sm border text-black border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    />
+                    <Button
+                      onClick={handleCreateNote}
+                      disabled={!newNoteName.trim()}
+                      size="sm"
+                      className="px-3"
+                    >
+                      <Plus size={16} />
+                    </Button>
+                  </div>
                 </div>
-                
-                {/* Quick Create */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="Create new note..."
-                    value={newNoteName}
-                    onChange={(e) => setNewNoteName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleCreateNote();
-                      } else if (e.key === 'Escape') {
-                        setShowNotesList(false);
-                      }
-                    }}
-                    className="flex-1 px-3 py-2 text-sm border text-black border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                  />
-                  <Button 
-                    onClick={handleCreateNote} 
-                    disabled={!newNoteName.trim()}
-                    size="sm"
-                    className="px-3"
-                  >
-                    <Plus size={16} />
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Notes List */}
-              <ScrollArea className="h-80">
-                <div className="p-4 space-y-3">
-                  {/* Pinned notes */}
-                  {pinnedNotes.length > 0 && (
+
+                {/* Notes List */}
+                <ScrollArea className="h-80">
+                  <div className="p-4 space-y-3">
+                    {/* Pinned notes */}
+                    {pinnedNotes.length > 0 && (
+                      <div>
+                        <h4 className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                          <Pin size={12} className="text-amber-500" />
+                          Pinned Notes
+                        </h4>
+                        <div className="space-y-2 mb-4">
+                          {pinnedNotes.map(note => (
+                            <NoteListItem
+                              key={note.id}
+                              note={note}
+                              isActive={note.id === currentNoteId}
+                              onClick={() => {
+                                navigateToNote(note.id);
+                                setShowNotesList(false);
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <Separator className="my-4" />
+                      </div>
+                    )}
+
+                    {/* All notes */}
                     <div>
-                      <h4 className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                        <Pin size={12} className="text-amber-500" />
-                        Pinned Notes
+                      <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <BookOpen size={12} />
+                        All Notes ({allNotes.filter(n => !n.isPinned).length})
                       </h4>
-                      <div className="space-y-2 mb-4">
-                        {pinnedNotes.map(note => (
-                          <NoteListItem 
-                            key={note.id} 
-                            note={note} 
+                      <div className="space-y-2">
+                        {allNotes.filter(n => !n.isPinned).map(note => (
+                          <NoteListItem
+                            key={note.id}
+                            note={note}
                             isActive={note.id === currentNoteId}
                             onClick={() => {
                               navigateToNote(note.id);
@@ -804,45 +829,22 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                           />
                         ))}
                       </div>
-                      <Separator className="my-4" />
                     </div>
-                  )}
-                  
-                  {/* All notes */}
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                      <BookOpen size={12} />
-                      All Notes ({allNotes.filter(n => !n.isPinned).length})
-                    </h4>
-                    <div className="space-y-2">
-                      {allNotes.filter(n => !n.isPinned).map(note => (
-                        <NoteListItem 
-                          key={note.id} 
-                          note={note} 
-                          isActive={note.id === currentNoteId}
-                          onClick={() => {
-                            navigateToNote(note.id);
-                            setShowNotesList(false);
-                          }}
-                        />
-                      ))}
-                    </div>
+
+                    {/* Empty state */}
+                    {allNotes.length === 0 && (
+                      <div className="text-center py-8">
+                        <BookOpen size={48} className="mx-auto mb-4 text-gray-300" />
+                        <p className="text-gray-500 text-sm mb-2">No notes yet</p>
+                        <p className="text-gray-400 text-xs">Create your first note above</p>
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Empty state */}
-                  {allNotes.length === 0 && (
-                    <div className="text-center py-8">
-                      <BookOpen size={48} className="mx-auto mb-4 text-gray-300" />
-                      <p className="text-gray-500 text-sm mb-2">No notes yet</p>
-                      <p className="text-gray-400 text-xs">Create your first note above</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </div>
+                </ScrollArea>
+              </div>
             </>
           )}
-          
+
           {/* Note Editor */}
           <div className="flex-1 p-4 overflow-auto">
             {currentNote ? (
@@ -856,7 +858,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                       autoFocus
                       onChange={(e) => handleNameChange(e.target.value)}
                       onBlur={() => setEditingName(false)}
-                      onKeyDown={(e) => { 
+                      onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           setEditingName(false);
                         }
@@ -907,6 +909,9 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                     mode="full"
                     onImageError={msg => toast.error(msg)}
                     onNavigateToNote={navigateToNote}
+                    onSaveCurrentNote={autoSave.saveManually}
+                    onWikiLinkCreated={autoSave.saveContentNow}
+
                   />
                 </div>
               </div>
@@ -926,7 +931,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
           </div>
         </div>
       </ResizablePanel>
-      
+
       {/* Side Panels */}
       {(showBacklinks || showTags || showGraphView) && (
         <>
@@ -939,13 +944,13 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                     <GraphPanel />
                   </div>
                 )}
-                
+
                 {showBacklinks && currentNoteId && (
                   <div className="flex-1 border-b border-gray-200">
                     <BacklinksPanel noteId={currentNoteId} />
                   </div>
                 )}
-                
+
                 {showTags && (
                   <div className="flex-1">
                     <TagsPanel />
@@ -958,7 +963,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
       )}
     </ResizablePanelGroup>
   );
-  
+
   if (embedded) {
     return mainContent;
   }
@@ -974,7 +979,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
         </main>
       </div>
       <AiDrawer />
-      
+
       {/* Template Modal */}
       <TemplateModal
         isOpen={showTemplateModal}
@@ -993,17 +998,16 @@ interface NoteListItemProps {
 }
 
 function NoteListItem({ note, isActive, onClick }: NoteListItemProps) {
-  const previewText = note.content?.blocks?.[0]?.data?.text 
+  const previewText = note.content?.blocks?.[0]?.data?.text
     ? note.content.blocks[0].data.text.replace(/<[^>]*>/g, '').substring(0, 100)
     : 'No content';
-  
+
   return (
     <div
-      className={`group cursor-pointer p-4 rounded-xl border transition-all duration-200 ${
-        isActive 
-          ? 'border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-md' 
+      className={`group cursor-pointer p-4 rounded-xl border transition-all duration-200 ${isActive
+          ? 'border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-md'
           : 'border-gray-200 hover:border-blue-200 hover:shadow-lg hover:bg-gradient-to-br hover:from-white hover:to-blue-25'
-      }`}
+        }`}
       onClick={onClick}
     >
       <div className="flex items-start justify-between mb-2">
@@ -1012,19 +1016,17 @@ function NoteListItem({ note, isActive, onClick }: NoteListItemProps) {
             {note.isPinned && (
               <Pin size={14} className="text-amber-500 fill-amber-100" />
             )}
-            <h4 className={`font-semibold text-base truncate transition-colors ${
-              isActive ? 'text-blue-800' : 'text-gray-900 group-hover:text-blue-700'
-            }`}>
+            <h4 className={`font-semibold text-base truncate transition-colors ${isActive ? 'text-blue-800' : 'text-gray-900 group-hover:text-blue-700'
+              }`}>
               {note.name}
             </h4>
           </div>
-          
-          <p className={`text-sm text-gray-600 line-clamp-2 mb-2 ${
-            isActive ? 'text-blue-600' : 'group-hover:text-gray-700'
-          }`}>
+
+          <p className={`text-sm text-gray-600 line-clamp-2 mb-2 ${isActive ? 'text-blue-600' : 'group-hover:text-gray-700'
+            }`}>
             {previewText}
           </p>
-          
+
           <div className="flex items-center gap-4 text-xs text-gray-500">
             <div className="flex items-center gap-1">
               <Calendar size={12} />
@@ -1037,25 +1039,24 @@ function NoteListItem({ note, isActive, onClick }: NoteListItemProps) {
           </div>
         </div>
       </div>
-      
+
       {note.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">
           {note.tags.slice(0, 3).map((tag: string) => (
-            <Badge 
-              key={tag} 
-              variant="secondary" 
-              className={`text-xs px-2 py-0.5 rounded-full transition-colors ${
-                isActive 
-                  ? 'bg-blue-100 text-blue-700 border-blue-200' 
+            <Badge
+              key={tag}
+              variant="secondary"
+              className={`text-xs px-2 py-0.5 rounded-full transition-colors ${isActive
+                  ? 'bg-blue-100 text-blue-700 border-blue-200'
                   : 'bg-gray-100 text-gray-600 hover:bg-blue-100 hover:text-blue-700'
-              }`}
+                }`}
             >
               #{tag}
             </Badge>
           ))}
           {note.tags.length > 3 && (
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className="text-xs px-2 py-0.5 rounded-full border-gray-300 text-gray-500"
             >
               +{note.tags.length - 3}
