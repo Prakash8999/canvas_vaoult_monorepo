@@ -17,6 +17,7 @@
     "express": "^4.21.2",
     "isbot": "^4.4.0",
     "jsonwebtoken": "^9.0.2",
+    "jwt-decode": "^4.0.0",
     "multer": "^2.0.2",
     "multer-s3": "^3.0.1",
     "mysql2": "^3.15.1",

@@ -3,6 +3,8 @@ import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { jwtDecode } from 'jwt-decode';
 
 interface LandingHeaderProps {
   onSignIn: () => void;
@@ -11,7 +13,23 @@ interface LandingHeaderProps {
 
 export function LandingHeader({ onSignIn, onSignUp }: LandingHeaderProps) {
   const token = useAuthStore((state) => state.token);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const clearToken = useAuthStore((state) => state.clearToken);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (token) {
+      try {
+        const decoded: any = jwtDecode(token);
+        if (decoded.exp * 1000 < Date.now()) {
+          clearToken();
+        }
+      } catch (error) {
+        clearToken();
+      }
+    }
+  }, [token, clearToken]);
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -47,7 +65,7 @@ export function LandingHeader({ onSignIn, onSignUp }: LandingHeaderProps) {
 
           {/* Auth Buttons */}
           <div className="flex items-center space-x-4">
-            {token ? (
+            {isAuthenticated ? (
               <Button onClick={() => navigate('/dashboard')}>
                 Dashboard
               </Button>

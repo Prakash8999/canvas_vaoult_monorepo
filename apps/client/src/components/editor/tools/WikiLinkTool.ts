@@ -211,7 +211,7 @@ if (this.config.onWikiLinkCreated) {
     }
     
     // Set up event delegation for click handling
-    this.setupEventDelegation();
+    // this.setupEventDelegation();
     
     return link;
   }

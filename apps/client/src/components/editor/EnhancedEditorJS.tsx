@@ -418,6 +418,51 @@ const newNotePayload: any = {
     return await codeExecutionService.executeCode(code, language);
   }, []);
   
+
+useEffect(() => {
+    const editorHolder = holderRef.current;
+    if (!editorHolder) {
+      return;
+    }
+
+    // This handler will live for the entire lifecycle of the editor instance
+    const handleWikiLinkClick = async (e: Event) => {
+      const target = e.target as HTMLElement;
+      const wikiLink = target.closest('wiki-link');
+
+      if (wikiLink) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        const noteId = wikiLink.getAttribute('data-note-id') || '';
+        const noteUid = wikiLink.getAttribute('data-note-uid') || '';
+        const noteName = wikiLink.getAttribute('data-note-name') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
+
+        // The onNavigateToNote prop (which maps to EnhancedNoteEditor's navigateToNote)
+        // ALREADY handles saving before navigation. We just call the navigation handler.
+        if (onNavigateToNote) {
+          // This calls the `handleNavigateToNote` function defined above
+          onNavigateToNote(  noteUid );
+        }
+      }
+    };
+
+    // Attach listener directly to the editor's container
+    editorHolder.addEventListener('click', handleWikiLinkClick);
+
+    // React's cleanup function removes the listener when the component
+    // (and thus the editor instance) is destroyed.
+    return () => {
+      editorHolder.removeEventListener('click', handleWikiLinkClick);
+    };
+    
+    // Re-run this effect if the holderRef changes or the navigation handler prop changes
+  }, [holderRef.current, onNavigateToNote]);
+
+
+
+
   const initializeEditor = useCallback(() => {
     if (!holderRef.current || editorRef.current) return;
 
