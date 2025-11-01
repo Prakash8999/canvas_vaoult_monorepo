@@ -91,7 +91,7 @@ export class WikiLinkTool implements InlineTool {
     const wikiLink = this.createWikiLink(selectedText || 'Link Text');
     range.insertNode(wikiLink);
     
-    console.log('[WikiLinkTool] Created WikiLink, triggering change...');
+    console.log('[WikiLinkTool] Created WikiLink');
     
     // Trigger a change event to ensure EditorJS detects the modification
     const changeEvent = new Event('input', { bubbles: true });
@@ -109,6 +109,22 @@ export class WikiLinkTool implements InlineTool {
       }, 50);
     }
     
+    // Save immediately after creating the wiki link
+    if (this.config.onWikiLinkCreated) {
+      setTimeout(async () => {
+        try {
+          // Get the fresh data from the editor
+          const savedData = await this.api.saver.save();
+          
+          console.log('[WikiLinkTool] Calling onWikiLinkCreated to persist content (awaiting)');
+          await this.config.onWikiLinkCreated(savedData);
+          console.log('[WikiLinkTool] onWikiLinkCreated completed - content saved');
+        } catch (err) {
+          console.error('[WikiLinkTool] onWikiLinkCreated failed:', err);
+        }
+      }, 100);
+    }
+    
     // Select the link text for editing
     const textNode = wikiLink.firstChild;
     if (textNode) {
@@ -117,32 +133,6 @@ export class WikiLinkTool implements InlineTool {
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(newRange);
-    }
-
-    // If a save callback was provided by the host (EnhancedEditor/EnhancedNoteEditor),
-    // call it to persist the editor content immediately (this will hit the update API).
-    // if (this.config.onSaveCurrentNote) {
-    //   try {
-    //     console.log('[WikiLinkTool] Calling onSaveCurrentNote to persist content after creating wiki-link (awaiting)');
-    //     await (this.config.onSaveCurrentNote as () => Promise<void>)();
-    //     console.log('[WikiLinkTool] onSaveCurrentNote completed');
-    //   } catch (err) {
-    //     console.error('[WikiLinkTool] onSaveCurrentNote failed:', err);
-    //   }
-    // }
-
-
-if (this.config.onWikiLinkCreated) {
-      try {
-        // We must get the fresh data from the editor *now*
-        const savedData = await this.api.saver.save();
-        
-        console.log('[WikiLinkTool] Calling onWikiLinkCreated to persist content (awaiting)');
-        await this.config.onWikiLinkCreated(savedData);
-        console.log('[WikiLinkTool] onWikiLinkCreated completed');
-      } catch (err) {
-        console.error('[WikiLinkTool] onWikiLinkCreated failed:', err);
-      }
     }
 
 

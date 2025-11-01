@@ -8,3 +8,4 @@ export const otpQueue = new Queue('send-otp', { connection: { url: process.env.R
 	removeOnComplete:true,
 	 removeOnFail: { age: 3600 }
 } });
+

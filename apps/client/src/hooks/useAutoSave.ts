@@ -55,6 +55,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
   const pendingContentRef = useRef<OutputData | null>(null);
   const isUnloadingRef = useRef(false);
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const lastSaveTimeRef = useRef<number>(0);
 
   // Clear interval when noteId changes or component unmounts
   useEffect(() => {
@@ -129,6 +130,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
       setLastSaved(new Date());
       setIsDirty(false);
       pendingContentRef.current = null;
+      lastSaveTimeRef.current = Date.now();
       
       console.log(`[AutoSave] Successfully saved note ${noteId}`);
     } catch (error) {
@@ -164,6 +166,13 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
 
   const updateContent = useCallback((content: OutputData) => {
     if (!noteId) return;
+    
+    // If we saved within the last 2 seconds, don't mark as dirty (handles wiki link creation)
+    const timeSinceLastSave = Date.now() - lastSaveTimeRef.current;
+    if (timeSinceLastSave < 2000) {
+      console.log(`[AutoSave] Ignoring content change - recently saved (${timeSinceLastSave}ms ago): ${noteId}`);
+      return;
+    }
     
     // Update local state immediately for responsive UI
     pendingContentRef.current = content;
@@ -284,6 +293,9 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
     console.log(`[AutoSave] Instant save triggered for note: ${noteId}`);
     // Use the content passed to us, not pendingContentRef
     await performSave(contentToSave);
+    
+    // Update last save time to prevent immediate re-marking as dirty
+    lastSaveTimeRef.current = Date.now();
   }, [noteId, performSave]);
 
   return {

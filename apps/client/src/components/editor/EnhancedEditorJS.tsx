@@ -33,7 +33,7 @@ interface EnhancedEditorJSProps {
   fullHeight?: boolean;
   width?: string | number;
   mode?: 'full' | 'light'; // New prop to control feature set
-  onNavigateToNote?: (noteId: string) => void; // New prop for navigation
+  onNavigateToNote?: (noteId: string) => Promise<void>; // New prop for navigation
   onSaveCurrentNote?: () => Promise<void>; // New prop for auto-save callback
   onWikiLinkCreated?: (data: OutputData) => Promise<void>;
 }
@@ -58,6 +58,7 @@ export function EnhancedEditorJS({
   const holderRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchOverlayRef = useRef<HTMLDivElement>(null);
+  const isSavingWikiLinkRef = useRef<boolean>(false);
   
   const { 
     notes, 
@@ -364,51 +365,49 @@ const newNotePayload: any = {
     // Attempt to persist the updated wiki-link attributes by triggering editor save
     // This is critical to ensure the note_uid is saved back to the current note's content
     
-    
-    // try {
-    //   if ((editorRef as any).current && typeof (editorRef as any).current.save === 'function') {
-    //     const savedData = await editorRef.current!.save();
-    //     console.log('[WikiLink] Successfully saved editor content with updated note_uid');
-        
-    //     // Trigger onChange to update the store and trigger auto-save
-    //     if (onChange) {
-    //       onChange(savedData);
-    //     }
-    //   }
-    // } catch (err) {
-    //   console.warn('Failed to save editor after updating wiki links with uid:', err);
-    // }
-
-
     try {
       if (editorRef.current && typeof editorRef.current.save === 'function') {
-        const savedData = await editorRef.current!.save();
-        console.log('[WikiLink] Got fresh editor content with new note_uid');
+        // Set flag to prevent EditorJS onChange from triggering during our save
+        isSavingWikiLinkRef.current = true;
         
-        // 1. Trigger onChange to update the store's pending state (sets pendingContentRef.current)
-        if (onChange) {
-          onChange(savedData);
+        const savedData = await editorRef.current.save();
+        console.log('[WikiLink] Successfully saved editor content with updated note_uid');
+        
+        // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
+        if (onWikiLinkCreated) {
+          await onWikiLinkCreated(savedData);
+          console.log('[WikiLink] onWikiLinkCreated completed - content saved to database');
+        } else if (propsRef.current.onChange) {
+          // Fallback: trigger onChange and force save
+          propsRef.current.onChange(savedData);
+          console.log('[WikiLink] Triggered onChange with updated content');
+          
+          // Force manual save through onSaveCurrentNote if available
+          if (onSaveCurrentNote) {
+            try {
+              await onSaveCurrentNote();
+              console.log('[WikiLink] Forced manual save completed');
+            } catch (saveErr) {
+              console.warn('[WikiLink] Manual save failed:', saveErr);
+            }
+          }
         }
-
-        // 2. NOW, manually trigger the save using the onSaveCurrentNote prop
-        //    which is connected to autoSave.saveManually()
-        if (onSaveCurrentNote) {
-          console.log('[WikiLink] Calling onSaveCurrentNote to persist note_uid before navigation...');
-          await onSaveCurrentNote(); // This will save the content set by onChange
-          console.log('[WikiLink] ...Save complete.');
-        } else {
-          console.warn('[WikiLink] onSaveCurrentNote is not defined. Cannot persist note_uid before navigation.');
-        }
+        
+        // Clear the flag after a short delay to allow any pending EditorJS onChange to complete
+        setTimeout(() => {
+          isSavingWikiLinkRef.current = false;
+        }, 100);
       }
     } catch (err) {
       console.warn('Failed to save editor after updating wiki links with uid:', err);
+      isSavingWikiLinkRef.current = false;
     }
 
     // Navigate to the newly created note using note_uid when possible (routes expect note_uid)
     // Prefer routing by note_uid when available
     const routeTarget = newNoteUid || newNoteId;
     if (onNavigateToNote) {
-      onNavigateToNote(routeTarget);
+      await onNavigateToNote(routeTarget);
     } else {
       setCurrentNote(newNoteId);
     }
@@ -578,6 +577,12 @@ useEffect(() => {
         ...advancedTools,
       },
       onChange: async () => {
+        // Skip onChange if we're currently saving WikiLink updates to prevent double-save
+        if (isSavingWikiLinkRef.current) {
+          console.log('[EditorJS] Skipping onChange - currently saving WikiLink updates');
+          return;
+        }
+        
         if (propsRef.current.onChange && editorRef.current) {
           try {
             const outputData = await editorRef.current.save();
