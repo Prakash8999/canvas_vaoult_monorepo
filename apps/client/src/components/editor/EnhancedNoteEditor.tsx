@@ -1013,12 +1013,25 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                   {editingName ? (
                     <input
                       className="text-2xl font-bold text-gray-900 px-2 py-1 border-b border-gray-300 focus:outline-none w-full"
-                      value={currentNote.name}
+                      value={newNoteName}
                       autoFocus
-                      onChange={(e) => handleNameChange(e.target.value)}
-                      onBlur={() => setEditingName(false)}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setNewNoteName(e.target.value)}
+                      onBlur={() => {
+                        if (newNoteName.trim() && newNoteName !== currentNote?.name) {
+                          handleNameChange(newNoteName);
+                        }
+                        setEditingName(false);
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
+                          if (newNoteName.trim() && newNoteName !== currentNote?.name) {
+                            handleNameChange(newNoteName);
+                          }
+                          setEditingName(false);
+                        }
+                        if (e.key === 'Escape') {
+                          setNewNoteName(currentNote?.name || '');
                           setEditingName(false);
                         }
                       }}
@@ -1027,7 +1040,10 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                     <div className="flex items-center justify-between">
                       <h1
                         className="text-2xl font-bold text-gray-900 cursor-text flex-1"
-                        onDoubleClick={() => setEditingName(true)}
+                        onDoubleClick={() => {
+                          setEditingName(true);
+                          setNewNoteName(currentNote?.name || '');
+                        }}
                       >
                         {currentNote.name}
                       </h1>
