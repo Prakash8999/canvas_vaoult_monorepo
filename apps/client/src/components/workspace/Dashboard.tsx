@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { 
-  FileText, 
-  Palette, 
-  Plus, 
-  Clock, 
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  FileText,
+  Palette,
+  Plus,
+  Clock,
   Pin,
   Sparkles,
   TrendingUp,
@@ -19,22 +19,26 @@ import { useWorkspaceStore } from '@/stores/workspace';
 import { useCanvasDocumentStore } from '@/stores/canvasDocument';
 import { format } from 'date-fns';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
-import { useNotes, useNoteMutations } from '@/hooks/useNotes';
+import { useNotes, useNoteMutations, usePaginatedNotes } from '@/hooks/useNotes';
 import { convertApiNoteToLocal } from '@/lib/api/notesApi';
 import { getWelcomeContent } from '../CommonContent/getWelcomeContent';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 export function Dashboard() {
   const navigate = useNavigate();
-  const { 
-    currentWorkspace, 
-    setCurrentNote,
+  
+  const {
+    currentWorkspace,
     addToRecent,
     toggleQuickCapture,
-    toggleAiDrawer 
+    toggleAiDrawer
   } = useWorkspaceStore();
+  const [creatingNote, setCreatingNote] = useState(false);
+  const pageSize = 10;
 
   const { data: notes = {} } = useNotes();
-  const { createNote } = useNoteMutations();
+  const { createNote, updateNote, deleteNote: deleteNoteMutation, isCreating, isUpdating, isDeleting } = useNoteMutations();
   const { getPinnedNotes } = useEnhancedNoteStore();
   const { canvases } = useCanvasDocumentStore();
 
@@ -44,7 +48,7 @@ export function Dashboard() {
 
   // Get actual notes data from enhanced note store
   const allNotes = Object.values(notes).sort((a, b) => b.modifiedAt - a.modifiedAt);
-  
+
   // Recent items: combine canvases and notes, sort by modified time
   const allCanvases = Object.values(canvases || {}).map((c: any) => ({
     id: c.id,
@@ -105,31 +109,69 @@ export function Dashboard() {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
   };
-
+    const [searchParams, setSearchParams] = useSearchParams();
   
-  const handleCreateNote = async () => {
-    const currentNotesCount = Object.keys(notes).length;
+    const getInitialPageIndex = () => {
+      const pageParam = searchParams.get('page');
+      const pageNum = pageParam ? parseInt(pageParam, 10) : 1;
+      return Math.max(0, pageNum - 1); // Convert to 0-based
+    };
+  
+    // Pagination state: pageIndex starts at 0
+    const [pageIndex, setPageIndex] = useState(getInitialPageIndex);
+  const {
+    data: pagedData,
+    isLoading: loading,
+    error: queryError,
+  } = usePaginatedNotes(pageIndex, pageSize);
+const handleCreateNote = async () => {
+    // Stronger guard against concurrent execution
+    if (creatingNote || isCreating || loading ) return;
+
+    // Wait for data to load before allowing creation
+    if (!pagedData) {
+      toast.warning("Please wait, loading notes...");
+      return;
+    }
+
+    setCreatingNote(true);
+
     try {
-      if (currentNotesCount === 0) {
-        // First note - create with welcome content
-        const apiNote = await createNote({
-          name: 'Welcome to Your Knowledge Base',
-          content: getWelcomeContent()
+      const totalFromAPI = pagedData?.total ?? 0;
+      const currentPageNotes = pagedData?.notes?.length ?? 0;
+      const hasExistingNotes = totalFromAPI > 0 || currentPageNotes > 0;
+
+      let apiNote;
+      const WELCOME_SEEDED_KEY = 'vcw:welcomeNoteSeeded';
+      const alreadySeeded = !!localStorage.getItem(WELCOME_SEEDED_KEY);
+      if (!hasExistingNotes) {
+        // Even if already seeded, ensure at least one note exists
+        apiNote = await createNote({
+          name: "Welcome to Your Knowledge Base",
+          content: getWelcomeContent(),
         });
-        const localNote = convertApiNoteToLocal(apiNote);
-        navigate(`/note/${localNote.note_uid}`);
-      } else {
+        localStorage.setItem(WELCOME_SEEDED_KEY, '1');
+      } else if (!alreadySeeded) {
+        // Optional: handle other first-time setup actions if needed
+        localStorage.setItem(WELCOME_SEEDED_KEY, '1');
+      }
+      else {
         // Regular note
         const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
-        const apiNote = await createNote({ name: noteName });
-        const localNote = convertApiNoteToLocal(apiNote);
-        navigate(`/note/${localNote.note_uid}`);
+        apiNote = await createNote({ name: noteName });
       }
+
+      // Navigate using note_uid (API expects uuid)
+      navigate(`/note/${apiNote.note_uid}`);
+
     } catch (error) {
-      console.error('Failed to create note:', error);
-      // Handle error - maybe show a toast
+      console.error("Failed to create note:", error);
+      toast.error("Failed to create note");
+    } finally {
+      setCreatingNote(false);
     }
   };
+
   const handleItemClick = (item: any) => {
     if (item.type === 'canvas') {
       navigate(`/canvas/${item.id}`);
@@ -141,7 +183,7 @@ export function Dashboard() {
 
   return (
     <div className="h-full overflow-auto bg-workspace-bg">
-      <motion.div 
+      <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -158,7 +200,7 @@ export function Dashboard() {
             </h1>
           </div>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Your local-first workspace for notes, canvases, and AI-powered creativity. 
+            Your local-first workspace for notes, canvases, and AI-powered creativity.
             Everything stays on your device, syncs seamlessly, and works offline.
           </p>
         </motion.div>
@@ -166,13 +208,15 @@ export function Dashboard() {
         {/* Quick Actions */}
         <motion.div variants={itemVariants} className="flex justify-center space-x-4">
           <Button
-            onClick={handleCreateNote}
+            onClick={!creatingNote && !isCreating ? handleCreateNote : undefined}
+            aria-disabled={creatingNote || isCreating }
+
             className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary"
           >
             <Plus className="mr-2 h-4 w-4" />
             New Note
           </Button>
-          
+
           <Button
             onClick={() => navigate('/canvas')}
             className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
@@ -181,7 +225,7 @@ export function Dashboard() {
             New Canvas
             <ExternalLink className="ml-2 h-3 w-3" />
           </Button>
-          
+
           <Button
             onClick={toggleQuickCapture}
             variant="outline"
@@ -190,7 +234,7 @@ export function Dashboard() {
             <Search className="mr-2 h-4 w-4" />
             Quick Capture
           </Button>
-          
+
           <Button
             onClick={toggleAiDrawer}
             variant="outline"
@@ -215,7 +259,7 @@ export function Dashboard() {
               </p>
             </CardContent>
           </Card>
-          
+
           <Card className="bg-workspace-panel border-workspace-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-foreground">Canvases</CardTitle>
@@ -228,7 +272,7 @@ export function Dashboard() {
               </p>
             </CardContent>
           </Card>
-          
+
           <Card className="bg-workspace-panel border-workspace-border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-foreground">Activity</CardTitle>

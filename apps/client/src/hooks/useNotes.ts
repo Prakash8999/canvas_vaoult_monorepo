@@ -116,9 +116,14 @@ export const useNoteMutations = () => {
     // Don't invalidate immediately on success to prevent refetch race conditions
     // The UI will handle navigation and manual refresh when needed
     onSuccess: (newApiNote) => {
+      // Invalidate all notes queries to ensure lists are updated
+      queryClient.invalidateQueries({ queryKey: notesQueryKeys.all });
+      
       // Add the new note to the cache
       const localNote = convertApiNoteToLocal(newApiNote);
       queryClient.setQueryData(notesQueryKeys.detail(localNote.id), localNote);
+      // Also cache with note_uid for NoteEditorPage
+      queryClient.setQueryData(notesQueryKeys.detail(localNote.note_uid), localNote);
     },
   });
 
@@ -141,6 +146,8 @@ export const useNoteMutations = () => {
         try {
           const localNote = convertApiNoteToLocal(updatedApiNote as ApiNote);
           queryClient.setQueryData(notesQueryKeys.detail(id), localNote);
+          // Also cache with note_uid for NoteEditorPage
+          queryClient.setQueryData(notesQueryKeys.detail(localNote.note_uid), localNote);
         } catch (error) {
           console.error('Error converting API note to local:', error, updatedApiNote);
         }

@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
 import { useNoteMutations, useNote } from '@/hooks/useNotes';
 import { convertApiNoteToLocal } from '@/lib/api/notesApi';
@@ -9,6 +9,7 @@ import { EditorSkeleton } from '../components/editor/EditorSkeleton';
 export default function NoteEditorPage() {
   const { uid } = useParams<{ uid: string }>();
   const navigate = useNavigate();
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   // We'll fetch the single note directly instead of relying on full notes cache
   const { createNote } = useNoteMutations();
   const { setCurrentNote } = useEnhancedNoteStore();
@@ -52,6 +53,31 @@ console.log('useNote fetch result:', { fetchedNote, isLoading, error, uid, inval
     }
   }, [uid, invalidId, fetchedNote]);
 
+  // Show initial loading shimmer for better UX feedback
+  useEffect(() => {
+    if (fetchedNote) {
+      // Convert the note to check if it's in the store
+      const localNote = convertApiNoteToLocal(fetchedNote);
+      const store = useEnhancedNoteStore.getState();
+      
+      // Wait until the note is actually in the store
+      const checkStore = () => {
+        const currentStore = useEnhancedNoteStore.getState();
+        if (currentStore.currentNoteId === localNote.id && currentStore.notes[localNote.id]) {
+          setIsInitialLoading(false);
+        } else {
+          // Check again after a short delay
+          setTimeout(checkStore, 10);
+        }
+      };
+      
+      // Brief minimum delay to show shimmer
+      setTimeout(checkStore, 100);
+    } else if (error) {
+      setIsInitialLoading(false);
+    }
+  }, [fetchedNote, error]);
+
   // Redirect on invalid id or hard fetch error (e.g., 404)
   useEffect(() => {
     console.log('Checking for navigation due to invalidId or error:', { invalidId, error, uid });
@@ -66,5 +92,5 @@ console.log('useNote fetch result:', { fetchedNote, isLoading, error, uid, inval
   if (!uid) return null; // interim while creating & navigating
   if (invalidId) return null;
   
-  return <NoteEditor isLoadingNote={isLoading} />;
+  return <NoteEditor isLoadingNote={isLoading || isInitialLoading} />;
 }
