@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import skeleton loading styles */
+@import './styles/skeleton-loading.css';
+
 /* CanvasVault Design System - Local-first workspace with beautiful typography and colors */
 
 @layer base {

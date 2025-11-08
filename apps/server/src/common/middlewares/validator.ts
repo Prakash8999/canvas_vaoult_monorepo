@@ -1,49 +1,60 @@
-import { NextFunction } from 'express-serve-static-core';
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { ZodType, ZodError, infer as zInfer } from 'zod';
 import { errorHandler } from './responseHandler';
-import { ZodSchema } from 'zod/v3';
 
-//validateBody as production ready
-export function validateBody(schema: ZodSchema) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    // console.log('Validating body:', req.body);
-    const result = schema.safeParse(req.body);
-    console.log("result in parse", result);
+// 🔹 Generic validator factory
+function validateRequestPart<T extends ZodType<any, any>>(
+  schema: T,
+  part: 'body' | 'params' | 'query'
+) {
+  return (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): void => {
+    const result = schema.safeParse(req[part]);
+
     if (!result.success) {
-      const formattedErrors = result.error.issues.map(issue => ({
-        field: issue.path.join('.'),
-        message: issue.message
-      }));
-      errorHandler(
-        res, 
-        'Validation failed',
-        formattedErrors,
-        400
-      );
+      const formattedErrors = formatZodErrors(result.error);
+      errorHandler(res, 'Validation failed', formattedErrors, 400);
       return;
     }
-    req.body = result.data;
+
+    // Apply parsed + typed data
+    (req as any)[part] = result.data;
     next();
   };
 }
-//validateParams as production ready
-export function validateParams(schema: ZodSchema) {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    const result = schema.safeParse(req.params);
-    if (!result.success) {
-      const formattedErrors = result.error.issues.map(issue => ({
-        field: issue.path.join('.'),
-        message: issue.message
-      }));
-      errorHandler(
-        res,
-        'Validation failed',
-        formattedErrors,
-        400
-      );
-      return;
-    }
-    req.params = result.data as import('express-serve-static-core').ParamsDictionary;
-    next();
-  };
+
+// 🔹 Error formatter (production-friendly)
+function formatZodErrors(error: ZodError) {
+  return error.issues.map(issue => ({
+    field: issue.path.join('.'),
+    message: issue.message,
+  }));
+}
+
+// 🔹 Convenience wrappers (typed)
+export function validateBody<T extends ZodType<any, any>>(schema: T) {
+  return validateRequestPart(schema, 'body') as (
+    req: Request<unknown, unknown, zInfer<T>>,
+    res: Response,
+    next: NextFunction
+  ) => void;
+}
+
+export function validateParams<T extends ZodType<any, any>>(schema: T) {
+  return validateRequestPart(schema, 'params') as (
+    req: Request<zInfer<T>>,
+    res: Response,
+    next: NextFunction
+  ) => void;
+}
+
+export function validateQuery<T extends ZodType<any, any>>(schema: T) {
+  return validateRequestPart(schema, 'query') as (
+    req: Request<unknown, unknown, unknown, zInfer<T>>,
+    res: Response,
+    next: NextFunction
+  ) => void;
 }

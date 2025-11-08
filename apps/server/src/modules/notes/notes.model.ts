@@ -94,6 +94,7 @@ export const CreateNoteSchema = NoteSchema.omit({
 export const UpdateNoteSchema = NoteSchema.partial().omit({
 	id: true,
 	user_id: true,
+	updated_at: true,
 	note_uid: true,
 	created_at: true,
 }).openapi({

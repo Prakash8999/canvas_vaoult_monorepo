@@ -9,6 +9,8 @@ import {
 
 } from './notes.controller';
 import { authUser } from '../../common/middlewares/auth';
+import { validateBody } from '../../common/middlewares/validator';
+import { CreateNoteSchema, UpdateNoteSchema } from './notes.model';
 
 const router = Router();
 
@@ -19,10 +21,10 @@ router.use(authUser);
 // router.post('/sync/events', handleSyncEvents);
 
 // CRUD operations
-router.post('/', createNote);              // POST /api/note - create note
+router.post('/', validateBody(CreateNoteSchema), createNote);              // POST /api/note - create note
 router.get('/notes', getAllNotes);             // GET /api/note - list all notes with pagination
 router.get('/:uid', getNote);             // GET /api/note/:uid - get specific note
-router.patch('/:id', updateNote);        // PATCH /api/note/:id - update note
+router.patch('/:id', validateBody(UpdateNoteSchema), updateNote);        // PATCH /api/note/:id - update note
 router.delete('/:id', deleteNote);       // DELETE /api/note/:id - delete note
 
 export default router;

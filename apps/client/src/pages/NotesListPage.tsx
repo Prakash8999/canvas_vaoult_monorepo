@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
 import { usePaginatedNotes, useNoteMutations } from '@/hooks/useNotes';
@@ -36,12 +36,118 @@ import { getWelcomeContent } from '@/components/CommonContent/getWelcomeContent'
 
 export default function NotesListPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const sidebarOpen = useWorkspaceStore(state => state.sidebarOpen);
 
+  // Get initial page from URL (1-based) and convert to 0-based for state
+  const getInitialPageIndex = () => {
+    const pageParam = searchParams.get('page');
+    const pageNum = pageParam ? parseInt(pageParam, 10) : 1;
+    return Math.max(0, pageNum - 1); // Convert to 0-based
+  };
+
   // Pagination state: pageIndex starts at 0
-  const [pageIndex, setPageIndex] = useState(0);
+  const [pageIndex, setPageIndex] = useState(getInitialPageIndex);
   const pageSize = 10;
+  const isUpdatingUrlRef = useRef(false);
+
+  // Set default page=1 in URL if no page parameter exists
+  useEffect(() => {
+    if (!searchParams.get('page')) {
+      isUpdatingUrlRef.current = true;
+      setSearchParams({ page: '1' }, { replace: true });
+      setTimeout(() => { isUpdatingUrlRef.current = false; }, 0);
+    }
+  }, [searchParams, setSearchParams]);
+
+  // Update URL when pageIndex changes (but only when pageIndex changes programmatically)
+  useEffect(() => {
+    if (isUpdatingUrlRef.current) return; // Skip if we're already updating URL
+    
+    const currentPageParam = searchParams.get('page');
+    const expectedPageNum = (pageIndex + 1).toString();
+    
+    // Only update URL if it's different from current pageIndex
+    if (currentPageParam !== expectedPageNum) {
+      isUpdatingUrlRef.current = true;
+      setSearchParams(prev => {
+        const newParams = new URLSearchParams(prev);
+        newParams.set('page', expectedPageNum);
+        return newParams;
+      }, { replace: true });
+      setTimeout(() => { isUpdatingUrlRef.current = false; }, 0);
+    }
+  }, [pageIndex, searchParams, setSearchParams]);
+
+  // Handle external URL changes (browser back/forward, direct navigation)
+  useEffect(() => {
+    if (isUpdatingUrlRef.current) return; // Skip if we're updating URL ourselves
+    
+    const urlPageNum = searchParams.get('page');
+    if (urlPageNum) {
+      const urlPageIndex = Math.max(0, parseInt(urlPageNum, 10) - 1);
+      if (urlPageIndex !== pageIndex) {
+        setPageIndex(urlPageIndex);
+      }
+    }
+  }, [searchParams, pageIndex]);
+
+  // Custom page setter that updates both state and URL
+  const setPageIndexWithUrl = (newPageIndex: number | ((prev: number) => number)) => {
+    const resolvedPageIndex = typeof newPageIndex === 'function' ? newPageIndex(pageIndex) : newPageIndex;
+    setPageIndex(resolvedPageIndex);
+  };
+
+
+  // Function to fetch notes with search
+  const fetchNotesWithSearch = async (query: string) => {
+    setIsSearching(true);
+    try {
+      const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/api/v1/note/notes?search=${encodeURIComponent(query)}&limit=50`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch search results');
+      }
+      const data = await response.json();
+      // Handle the response format
+      const notesData = data.data;
+      let notesArray = [];
+      if (Array.isArray(notesData)) {
+        notesArray = notesData;
+      } else if (notesData && notesData.notes) {
+        notesArray = notesData.notes;
+      } else {
+        notesArray = [];
+      }
+
+      // Map API response to match frontend expected format
+      const mappedNotes = notesArray.map(note => ({
+        id: note.id,
+        name: note.title,
+        content: note.content,
+        tags: note.tags || [],
+        note_uid: note.note_uid,
+        isPinned: note.pinned,
+        modifiedAt: note.updated_at,
+        wordCount: getWordCount(note.content),
+      }));
+
+      setApiSearchResults(mappedNotes);
+    } catch (error) {
+      console.error('Error fetching search results:', error);
+      setApiSearchResults([]);
+      toast.error('Failed to search notes');
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
 
   const {
@@ -50,15 +156,60 @@ export default function NotesListPage() {
     error: queryError,
   } = usePaginatedNotes(pageIndex, pageSize);
   const { createNote, updateNote, deleteNote: deleteNoteMutation, isCreating, isUpdating, isDeleting } = useNoteMutations();
-
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [apiSearchResults, setApiSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const {
     searchQuery,
     setSearchQuery,
     searchResults
   } = useEnhancedNoteStore();
+  
+  // Debounce search query
+  useEffect(() => {
+    if (searchQuery.length >= 3) {
+      const timer = setTimeout(() => {
+        setDebouncedSearchQuery(searchQuery);
+      }, 500); // 500ms debounce after 3+ characters
+      return () => clearTimeout(timer);
+    } else {
+      setDebouncedSearchQuery('');
+    }
+  }, [searchQuery]);
+
+  // Fetch search results from API
+  useEffect(() => {
+    if (debouncedSearchQuery) {
+      fetchNotesWithSearch(debouncedSearchQuery);
+    } else {
+      setApiSearchResults([]);
+    }
+  }, [debouncedSearchQuery]);
+  
 
   const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const [creatingNote, setCreatingNote] = useState(false);
+
+  // Debounce search query
+  useEffect(() => {
+    if (searchQuery.length >= 3) {
+      const timer = setTimeout(() => {
+        setDebouncedSearchQuery(searchQuery);
+      }, 500); // 500ms debounce after 3+ characters
+      return () => clearTimeout(timer);
+    } else {
+      setDebouncedSearchQuery('');
+    }
+  }, [searchQuery]);
+
+  // Fetch search results from API
+  useEffect(() => {
+    if (debouncedSearchQuery) {
+      fetchNotesWithSearch(debouncedSearchQuery);
+    } else {
+      setApiSearchResults([]);
+    }
+  }, [debouncedSearchQuery]);
 
   // Notes for the current page
   const pageNotes = pagedData?.notes || [];
@@ -70,7 +221,7 @@ export default function NotesListPage() {
 
   // Get notes to display based on filters
   const getDisplayedNotes = () => {
-    let notesToShow = searchQuery ? searchResults : allNotes;
+    let notesToShow = debouncedSearchQuery ? apiSearchResults : allNotes;
     if (showPinnedOnly) {
       notesToShow = notesToShow.filter(note => note.isPinned);
     }
@@ -89,7 +240,7 @@ export default function NotesListPage() {
   // Welcome content for first note
   const handleCreateNote = async () => {
     // Stronger guard against concurrent execution
-    if (creatingNote || isCreating || loading) return;
+    if (creatingNote || isCreating || loading || isSearching) return;
 
     // Wait for data to load before allowing creation
     if (!pagedData) {
@@ -205,6 +356,29 @@ export default function NotesListPage() {
     return '';
   };
 
+  // Helper to calculate word count from EditorJS content
+  const getWordCount = (content: any) => {
+    if (!content || !content.blocks || content.blocks.length === 0) return 0;
+    let totalWords = 0;
+    for (const block of content.blocks) {
+      const text = block?.data?.text || block?.data?.message || '';
+      if (text && typeof text === 'string') {
+        // strip HTML tags and count words
+        const stripped = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        const words = stripped.split(' ').filter(word => word.length > 0);
+        totalWords += words.length;
+      }
+    }
+    return totalWords;
+  };
+
+      useEffect(() => {
+      return () => {
+        setSearchQuery('');
+      };
+    }, []);
+  
+
   return (
     <div className="h-screen bg-workspace-bg flex flex-col overflow-hidden w-full">
       <Header />
@@ -268,8 +442,8 @@ export default function NotesListPage() {
                 ? "opacity-60 pointer-events-none"
                 : "hover:border-primary/40 cursor-pointer"
                 }`}
-              onClick={!creatingNote && !isCreating && !loading && pagedData ? handleCreateNote : undefined}
-              aria-disabled={creatingNote || isCreating || loading || !pagedData}
+              onClick={!creatingNote && !isCreating && !loading && !isSearching && pagedData ? handleCreateNote : undefined}
+              aria-disabled={creatingNote || isCreating || loading || isSearching || !pagedData}
             >
               <CardContent className="p-8 text-center">
                 <div className="flex flex-col items-center gap-4">
@@ -290,13 +464,13 @@ export default function NotesListPage() {
 
             {/* Notes Grid */}
             <div className="flex-1 overflow-hidden">
-              {loading ? (
+              {loading || isSearching ? (
                 <div className="h-full flex items-center justify-center">
                   <Card className="bg-workspace-panel border-workspace-border p-8">
                     <div className="text-center text-muted-foreground">
                       <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
                       <div className="text-xl font-medium mb-2 text-foreground">
-                        Loading notes...
+                        {isSearching ? 'Searching notes...' : 'Loading notes...'}
                       </div>
                     </div>
                   </Card>
@@ -447,7 +621,7 @@ export default function NotesListPage() {
                     <div className="col-span-full flex flex-col items-center gap-4 py-8">
                       <div className="flex items-center gap-2">
                         <Button
-                          onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                          onClick={() => setPageIndexWithUrl((p) => Math.max(0, p - 1))}
                           disabled={pageIndex === 0}
                           variant="outline"
                           className="border-workspace-border hover:bg-workspace-hover"
@@ -464,7 +638,7 @@ export default function NotesListPage() {
                               return Array.from({ length: totalPages }).map((_, idx) => (
                                 <Button
                                   key={idx}
-                                  onClick={() => setPageIndex(idx)}
+                                  onClick={() => setPageIndexWithUrl(idx)}
                                   variant={idx === pageIndex ? 'default' : 'outline'}
                                   className={`h-8 w-8 p-0 ${idx === pageIndex ? 'bg-primary text-white' : ''}`}
                                 >
@@ -481,7 +655,7 @@ export default function NotesListPage() {
                         </div>
 
                         <Button
-                          onClick={() => setPageIndex((p) => p + 1)}
+                          onClick={() => setPageIndexWithUrl((p) => p + 1)}
                           disabled={(() => {
                             const total = pagedData?.total;
                             const totalPages = typeof total === 'number' && total > 0 ? Math.ceil(total / pageSize) : 0;

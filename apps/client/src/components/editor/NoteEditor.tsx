@@ -1,6 +1,11 @@
 import EnhancedNoteEditor from './EnhancedNoteEditor';
 
-export default function NoteEditor({ embedded = false }: { embedded?: boolean }) {
+interface NoteEditorProps {
+	embedded?: boolean;
+	isLoadingNote?: boolean;
+}
+
+export default function NoteEditor({ embedded = false, isLoadingNote = false }: NoteEditorProps) {
 	// Use the enhanced note editor with full features
-	return <EnhancedNoteEditor embedded={embedded} mode="full" />;
+	return <EnhancedNoteEditor embedded={embedded} mode="full" isLoadingNote={isLoadingNote} />;
 }

@@ -41,6 +41,7 @@ export interface NotesListResponse {
     limit: number;
     offset: number;
     hasMore: boolean;
+    pageNum: number;
   };
 }
 
@@ -83,13 +84,15 @@ export const notesApi = {
     const notesData = response.data.data;
     if (Array.isArray(notesData)) {
       // Legacy format: data is array of notes
+      console.log('Legacy notes format detected' , notesData);
       return {
         notes: notesData,
         pagination: {
           total: notesData.length,
           limit,
           offset,
-          hasMore: false
+          hasMore: false,
+          pageNum: Math.floor(offset / limit) + 1
         }
       };
     } else if (notesData && notesData.notes) {
@@ -99,6 +102,7 @@ export const notesApi = {
       return {
         notes: [],
         pagination: {
+          pageNum: 1,
           total: 0,
           limit,
           offset,

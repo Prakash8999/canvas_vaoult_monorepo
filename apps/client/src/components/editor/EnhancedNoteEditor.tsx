@@ -5,6 +5,7 @@ import { BacklinksPanel } from './panels/BacklinksPanel';
 import { TagsPanel } from './panels/TagsPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { TemplateModal } from './TemplateModal';
+import { SearchResultsSkeleton, PanelSkeleton } from './EditorSkeleton';
 import { toast } from 'sonner';
 
 import type { OutputData } from '@editorjs/editorjs';
@@ -49,14 +50,15 @@ import {
 interface EnhancedNoteEditorProps {
   embedded?: boolean;
   mode?: 'full' | 'light';
+  isLoadingNote?: boolean;
 }
 
-export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: EnhancedNoteEditorProps) {
+export default function EnhancedNoteEditor({ embedded = false, mode = 'full', isLoadingNote = false }: EnhancedNoteEditorProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const sidebarOpen = useWorkspaceStore(state => state.sidebarOpen);
 
-  const { data: notes = {} } = useNotes();
+  const { data: notes = {}, isLoading: notesLoading, error: notesError } = useNotes();
   const { createNote, updateNote: updateNoteMutation, isCreating, isUpdating } = useNoteMutations();
 
   const {
@@ -73,6 +75,12 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     setSearchQuery,
     searchResults
   } = useEnhancedNoteStore();
+
+  // Debounced search states
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [apiSearchResults, setApiSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   // Auto-save hook
   const autoSave = useAutoSave({
     noteId: currentNoteId,
@@ -81,6 +89,13 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     debounceMs: 2000, // 2 seconds debounce for keystroke changes
     enabled: mode === 'full' // Only enable auto-save in full mode
   });
+
+    useEffect(() => {
+    return () => {
+      setSearchQuery('');
+    };
+  }, []);
+
 
   // Save before navigation/note switching
   const previousNoteIdRef = useRef<string | null>(null);
@@ -117,6 +132,61 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentNoteId, autoSave]);
+
+  // Debounce search query
+  useEffect(() => {
+    if (searchQuery.length >= 3) {
+      const timer = setTimeout(() => {
+        setDebouncedSearchQuery(searchQuery);
+      }, 500); // 500ms debounce after 3+ characters
+      return () => clearTimeout(timer);
+    } else {
+      setDebouncedSearchQuery('');
+    }
+  }, [searchQuery]);
+
+  // Fetch search results from API
+  useEffect(() => {
+    if (debouncedSearchQuery) {
+      fetchNotesWithSearch(debouncedSearchQuery);
+    } else {
+      setApiSearchResults([]);
+    }
+  }, [debouncedSearchQuery]);
+
+  // Function to fetch notes with search
+  const fetchNotesWithSearch = async (query: string) => {
+    setIsSearching(true);
+    try {
+      const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/api/v1/note/notes?search=${encodeURIComponent(query)}&limit=50`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch search results');
+      }
+      const data = await response.json();
+      // Handle the response format
+      const notesData = data.data;
+      if (Array.isArray(notesData)) {
+        setApiSearchResults(notesData);
+      } else if (notesData && notesData.notes) {
+        setApiSearchResults(notesData.notes);
+      } else {
+        setApiSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Error fetching search results:', error);
+      setApiSearchResults([]);
+      toast.error('Failed to search notes');
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   // Helper function to navigate to a note
   const navigateToNote = async (noteId: string) => {
@@ -414,32 +484,51 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
     }
   };
 
+  // Check if we're in a loading state that should show skeleton
+  const isInitialLoading = (notesLoading && Object.keys(notes).length === 0) || isLoadingNote;
+
   // Show simplified interface for light mode
   if (mode === 'light') {
     return (
       <div className="w-full h-full max-w-none bg-white rounded-none shadow-none p-6 border border-none">
         {/* Simple title */}
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Canvas Document
-          </h1>
+          {isInitialLoading ? (
+            <div className="animate-pulse h-8 bg-gray-200 rounded w-64 mb-2"></div>
+          ) : (
+            <h1 className="text-2xl font-bold text-gray-900">
+              Canvas Document
+            </h1>
+          )}
         </div>
 
         <div className="w-full max-w-2xl mx-auto">
-          <EnhancedEditorJS
-            key={currentNote?.id}
-            width={700}
-            data={currentNote?.content}
-            onChange={handleNoteChange}
-            placeholder="Start writing your document..."
-            alignLeft
-            noBorder
-            mode="light"
-            onImageError={msg => toast.error(msg)}
-            onNavigateToNote={navigateToNote}
-            onSaveCurrentNote={autoSave.saveManually}
-            onWikiLinkCreated={autoSave.saveContentNow}
-          />
+          {isInitialLoading ? (
+            <div className="space-y-4">
+              <div className="animate-pulse h-4 bg-gray-200 rounded w-full"></div>
+              <div className="animate-pulse h-4 bg-gray-200 rounded w-3/4"></div>
+              <div className="animate-pulse h-4 bg-gray-200 rounded w-5/6"></div>
+              <div className="space-y-2 mt-4">
+                <div className="animate-pulse h-3 bg-gray-200 rounded w-full"></div>
+                <div className="animate-pulse h-3 bg-gray-200 rounded w-2/3"></div>
+              </div>
+            </div>
+          ) : (
+            <EnhancedEditorJS
+              key={currentNote?.id}
+              width={700}
+              data={currentNote?.content}
+              onChange={handleNoteChange}
+              placeholder="Start writing your document..."
+              alignLeft
+              noBorder
+              mode="light"
+              onImageError={msg => toast.error(msg)}
+              onNavigateToNote={navigateToNote}
+              onSaveCurrentNote={autoSave.saveManually}
+              onWikiLinkCreated={autoSave.saveContentNow}
+            />
+          )}
         </div>
       </div>
     );
@@ -475,7 +564,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                 <Search size={14} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
-                  placeholder="Search all notes... (Ctrl+F)"
+                  placeholder="Search all notes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -495,7 +584,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                 )}
 
                 {/* Enhanced Search Results Dropdown */}
-                {searchQuery && searchResults.length > 0 && (
+                {searchQuery && debouncedSearchQuery && apiSearchResults.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
                     {/* Header */}
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 border-b border-gray-200">
@@ -504,45 +593,45 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                           Search Results
                         </div>
                         <Badge variant="secondary" className="text-xs">
-                          {searchResults.length} found
+                          {apiSearchResults.length} found
                         </Badge>
                       </div>
                     </div>
 
                     {/* Results */}
                     <div className="max-h-80 overflow-y-auto">
-                      {searchResults.map(note => (
+                      {apiSearchResults.map(note => (
                         <div
-                          key={note.id}
+                          key={note.note_uid}
                           className="p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-all duration-200"
                           onClick={() => {
-                            navigateToNote(note.id);
+                            navigateToNote(note.note_uid);
                             setSearchQuery(''); // Clear search after navigation
                           }}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
-                                {note.isPinned && (
+                                {note.pinned && (
                                   <Pin size={12} className="text-amber-500 flex-shrink-0" />
                                 )}
                                 <span className="font-medium text-sm text-gray-900 truncate">
-                                  {note.name}
+                                  {note.title}
                                 </span>
                               </div>
 
                               <div className="text-xs text-gray-500 flex items-center gap-3 mb-2">
                                 <span className="flex items-center gap-1">
                                   <FileText size={10} />
-                                  {note.wordCount} words
+                                  {note.content?.blocks?.length || 0} blocks
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Calendar size={10} />
-                                  {new Date(note.modifiedAt).toLocaleDateString()}
+                                  {new Date(note.updated_at).toLocaleDateString()}
                                 </span>
                               </div>
 
-                              {note.tags.length > 0 && (
+                              {note.tags && note.tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1">
                                   {note.tags.slice(0, 3).map(tag => (
                                     <Badge key={tag} variant="outline" className="text-xs px-1.5 py-0 text-blue-600 border-blue-200">
@@ -568,8 +657,13 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
                   </div>
                 )}
 
+                {/* Loading State */}
+                {searchQuery && isSearching && (
+                  <SearchResultsSkeleton />
+                )}
+
                 {/* Enhanced No Results Message */}
-                {searchQuery && searchResults.length === 0 && (
+                {searchQuery && debouncedSearchQuery && !isSearching && apiSearchResults.length === 0 && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
                     <div className="p-6 text-center">
                       <Search size={32} className="mx-auto mb-3 text-gray-300" />
@@ -847,7 +941,72 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
 
           {/* Note Editor */}
           <div className="flex-1 p-4 overflow-auto">
-            {currentNote ? (
+            {isInitialLoading ? (
+              // Show shimmer skeleton while initial loading
+              <div className="h-full space-y-6">
+                {/* Title area skeleton */}
+                <div className="flex items-center justify-between">
+                  <div className="animate-pulse h-8 bg-gray-200 rounded w-80"></div>
+                  <div className="flex items-center gap-4">
+                    <div className="animate-pulse h-4 bg-gray-200 rounded w-24"></div>
+                    <div className="animate-pulse h-4 bg-gray-200 rounded w-20"></div>
+                    <div className="animate-pulse h-6 bg-gray-200 rounded w-16"></div>
+                  </div>
+                </div>
+
+                {/* Content skeleton */}
+                <div className="space-y-4">
+                  <div className="animate-pulse h-4 bg-gray-200 rounded w-full"></div>
+                  <div className="animate-pulse h-4 bg-gray-200 rounded w-5/6"></div>
+                  <div className="animate-pulse h-4 bg-gray-200 rounded w-4/5"></div>
+                  
+                  <div className="space-y-3 mt-6">
+                    <div className="animate-pulse h-6 bg-gray-200 rounded w-48"></div>
+                    <div className="space-y-2">
+                      <div className="animate-pulse h-3 bg-gray-200 rounded w-full"></div>
+                      <div className="animate-pulse h-3 bg-gray-200 rounded w-3/4"></div>
+                      <div className="animate-pulse h-3 bg-gray-200 rounded w-5/6"></div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 mt-6">
+                    <div className="animate-pulse h-32 bg-gray-200 rounded-lg w-full"></div>
+                  </div>
+
+                  <div className="space-y-2 mt-6">
+                    <div className="animate-pulse h-4 bg-gray-200 rounded w-full"></div>
+                    <div className="animate-pulse h-4 bg-gray-200 rounded w-2/3"></div>
+                  </div>
+                </div>
+              </div>
+            ) : isCreating ? (
+              // Show creation skeleton when creating a note
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <div className="text-lg mb-2">Creating note...</div>
+                  <div className="text-sm text-muted-foreground">Please wait while we set up your new note</div>
+                </div>
+              </div>
+            ) : notesError ? (
+              // Show error state if notes failed to load
+              <div className="h-full flex items-center justify-center text-gray-500">
+                <div className="text-center p-8">
+                  <div className="text-xl font-medium mb-2 text-destructive">
+                    Failed to load notes
+                  </div>
+                  <div className="text-sm text-muted-foreground mb-4">
+                    {notesError.message || 'An error occurred while loading your notes'}
+                  </div>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              </div>
+            ) : currentNote ? (
               <div className="h-full overflow-auto">
                 {/* Title area */}
                 <div className="mb-4 flex-shrink-0">
@@ -941,19 +1100,31 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full' }: 
               <div className="h-full flex flex-col">
                 {showGraphView && (
                   <div className="flex-1 border-b border-gray-200">
-                    <GraphPanel />
+                    {notesLoading ? (
+                      <PanelSkeleton title="Graph View" />
+                    ) : (
+                      <GraphPanel />
+                    )}
                   </div>
                 )}
 
                 {showBacklinks && currentNoteId && (
                   <div className="flex-1 border-b border-gray-200">
-                    <BacklinksPanel noteId={currentNoteId} />
+                    {notesLoading ? (
+                      <PanelSkeleton title="Backlinks" />
+                    ) : (
+                      <BacklinksPanel noteId={currentNoteId} />
+                    )}
                   </div>
                 )}
 
                 {showTags && (
                   <div className="flex-1">
-                    <TagsPanel />
+                    {notesLoading ? (
+                      <PanelSkeleton title="Tags" />
+                    ) : (
+                      <TagsPanel />
+                    )}
                   </div>
                 )}
               </div>
@@ -1005,8 +1176,8 @@ function NoteListItem({ note, isActive, onClick }: NoteListItemProps) {
   return (
     <div
       className={`group cursor-pointer p-4 rounded-xl border transition-all duration-200 ${isActive
-          ? 'border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-md'
-          : 'border-gray-200 hover:border-blue-200 hover:shadow-lg hover:bg-gradient-to-br hover:from-white hover:to-blue-25'
+        ? 'border-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-md'
+        : 'border-gray-200 hover:border-blue-200 hover:shadow-lg hover:bg-gradient-to-br hover:from-white hover:to-blue-25'
         }`}
       onClick={onClick}
     >
@@ -1047,8 +1218,8 @@ function NoteListItem({ note, isActive, onClick }: NoteListItemProps) {
               key={tag}
               variant="secondary"
               className={`text-xs px-2 py-0.5 rounded-full transition-colors ${isActive
-                  ? 'bg-blue-100 text-blue-700 border-blue-200'
-                  : 'bg-gray-100 text-gray-600 hover:bg-blue-100 hover:text-blue-700'
+                ? 'bg-blue-100 text-blue-700 border-blue-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-blue-100 hover:text-blue-700'
                 }`}
             >
               #{tag}

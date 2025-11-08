@@ -196,6 +196,7 @@ export const usePaginatedNotes = (pageIndex = 0, pageSize = 10) => {
         total,
         limit: response.pagination?.limit ?? pageSize,
         offset: response.pagination?.offset ?? offset,
+        pageNum: response.pagination?.pageNum,
       };
     },
     staleTime: 5 * 60 * 1000,

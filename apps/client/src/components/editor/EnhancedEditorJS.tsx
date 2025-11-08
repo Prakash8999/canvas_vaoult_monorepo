@@ -99,10 +99,10 @@ export function EnhancedEditorJS({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+F for search
-      if (e.ctrlKey && e.key === 'f') {
-        e.preventDefault();
-        showSearch();
-      }
+      // if (e.ctrlKey && e.key === 'f') {
+      //   e.preventDefault();
+      //   showSearch();
+      // }
       
       // Escape to close search
       if (e.key === 'Escape') {

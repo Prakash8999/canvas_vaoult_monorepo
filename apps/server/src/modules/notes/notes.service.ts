@@ -6,6 +6,7 @@ import { Op } from 'sequelize';
 
 
 import { v4 as uuidv4 } from 'uuid';
+import WikiLink from "./wikilink.model";
 
 // CRUD Operations
 
@@ -20,19 +21,46 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 			created_at: new Date(),
 			updated_at: new Date(),
 		};
-		
-		const note = await Note.create(noteData);
-		return note;
+
+		if (data.is_wiki_link) {
+			if (!data.parent_note_id) {
+				throw new Error('Parent note ID is required when creating a wiki link');
+			}
+
+			const transaction = await Note.sequelize!.transaction();
+			try {
+				const note = await Note.create(noteData, { transaction });
+				await WikiLink.create({
+					user_id: userId,
+					parent_note_id: data.parent_note_id,
+					child_note_id: note.dataValues.id,
+					created_at: new Date(),
+					updated_at: new Date(),
+				}, { transaction });
+
+				await transaction.commit();
+				return note;
+			} catch (error) {
+				await transaction.rollback();
+				throw error;
+			}
+		} else {
+			const note = await Note.create(noteData);
+			return note;
+		}
 	} catch (error) {
 		console.error('Error creating note:', error);
 		throw error;
 	}
 };
 
-export const getAllNotesService = async (userId: number, limit?: number, offset?: number): Promise<{ notes: Note[], total: number }> => {
+export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string): Promise<{ notes: Note[], total: number }> => {
 	try {
-		const whereClause = { user_id: userId };
-		
+		const whereClause: any = { user_id: userId };
+		if (search) {
+			whereClause.title = { [Op.iLike]: `%${search}%` };
+		}
+		console.log('Searching notes with clause:', whereClause);
 		const { count, rows } = await Note.findAndCountAll({
 			where: whereClause,
 			order: [['updated_at', 'DESC']],
@@ -40,7 +68,7 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 			offset: offset || 0,
 		});
 		console.log('Fetched notes:', { userId, count, limit, offset });
-
+		console.log('Notes data:', rows);
 		return { notes: rows, total: count };
 	} catch (error) {
 		console.error('Error fetching notes:', error);
@@ -64,10 +92,10 @@ export const getNoteByIdService = async (uid: string, userId: number): Promise<N
 export const updateNoteService = async (id: number, data: NoteUpdateAttributes, userId: number): Promise<Note | null> => {
 	try {
 		// First check if note exists and belongs to user
-		const existingNote = await Note.findOne({ 
-			where: { id, user_id: userId } 
+		const existingNote = await Note.findOne({
+			where: { id, user_id: userId }
 		});
-		
+
 		if (!existingNote) {
 			throw new Error('Note not found');
 		}
@@ -114,7 +142,7 @@ export const deleteNoteService = async (id: number, userId: number): Promise<boo
 // 	clientId: string,
 // 	userId: number
 // ): Promise<{ applied: string[], updatedResources: UpdatedResource[], conflicts: Conflict[] }> => {
-	
+
 // 	const applied: string[] = [];
 // 	const updatedResources: UpdatedResource[] = [];
 // 	const conflicts: Conflict[] = [];
@@ -288,12 +316,12 @@ export const deleteNoteService = async (id: number, userId: number): Promise<boo
 
 // 	// Apply update
 // 	const updateData: Partial<NoteUpdateAttributes> = {};
-	
+
 // 	if (event.payload.title !== undefined) updateData.title = event.payload.title;
 // 	if (event.payload.content !== undefined) updateData.content = event.payload.content;
 // 	if (event.payload.tags !== undefined) updateData.tags = event.payload.tags;
 // 	if (event.payload.pinned !== undefined) updateData.pinned = event.payload.pinned;
-	
+
 // 	// Always increment version and update timestamp
 // 	updateData.version = existingNote.version + 1;
 // 	updateData.updated_at = new Date();
@@ -309,7 +337,7 @@ export const deleteNoteService = async (id: number, userId: number): Promise<boo
 
 // const handleDeleteEvent = async (event: SyncEvent, userId: number, transaction: Transaction): Promise<void> => {
 // 	const noteId = parseInt(event.resourceId);
-	
+
 // 	const deletedRows = await Note.destroy({
 // 		where: { id: noteId, user_id: userId },
 // 		transaction

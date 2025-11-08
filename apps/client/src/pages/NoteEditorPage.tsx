@@ -4,6 +4,7 @@ import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
 import { useNoteMutations, useNote } from '@/hooks/useNotes';
 import { convertApiNoteToLocal } from '@/lib/api/notesApi';
 import NoteEditor from '../components/editor/NoteEditor';
+import { EditorSkeleton } from '../components/editor/EditorSkeleton';
 
 export default function NoteEditorPage() {
   const { uid } = useParams<{ uid: string }>();
@@ -64,6 +65,6 @@ console.log('useNote fetch result:', { fetchedNote, isLoading, error, uid, inval
 
   if (!uid) return null; // interim while creating & navigating
   if (invalidId) return null;
-  // Optionally could render a loading skeleton
-  return <NoteEditor />;
+  
+  return <NoteEditor isLoadingNote={isLoading} />;
 }
