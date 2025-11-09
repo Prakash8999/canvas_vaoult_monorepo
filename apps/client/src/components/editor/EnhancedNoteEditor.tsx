@@ -1129,7 +1129,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                     {notesLoading ? (
                       <PanelSkeleton title="Backlinks" />
                     ) : (
-                      <BacklinksPanel noteId={currentNoteId} />
+                      <BacklinksPanel note_uid={currentNote.note_uid} />
                     )}
                   </div>
                 )}

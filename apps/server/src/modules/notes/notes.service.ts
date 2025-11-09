@@ -1,4 +1,4 @@
-import { NoteCreationAttributes, NoteUpdateAttributes, Note } from "./notes.model";
+import { NoteCreationAttributes, NoteUpdateAttributes } from "./notes.model";
 // import { SyncEventLog } from "./syncEventLog.model";
 // import { SyncEvent, Conflict, UpdatedResource } from "./sync.schema";
 import { Op } from 'sequelize';
@@ -6,7 +6,7 @@ import { Op } from 'sequelize';
 
 
 import { v4 as uuidv4 } from 'uuid';
-import WikiLink from "./wikilink.model";
+import { WikiLink, Note } from "../shared/model/model.relation";
 
 // CRUD Operations
 
@@ -21,7 +21,6 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 			created_at: new Date(),
 			updated_at: new Date(),
 		};
-
 		if (data.is_wiki_link) {
 			if (!data.parent_note_id) {
 				throw new Error('Parent note ID is required when creating a wiki link');
@@ -54,11 +53,14 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 	}
 };
 
-export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string): Promise<{ notes: Note[], total: number }> => {
+export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string, isWikilink: boolean = false): Promise<{ notes: Note[], total: number }> => {
 	try {
 		const whereClause: any = { user_id: userId };
 		if (search) {
-			whereClause.title = { [Op.iLike]: `%${search}%` };
+
+			whereClause.title = isWikilink
+				? search                     // exact match
+				: { [Op.iLike]: `%${search}%` };
 		}
 		console.log('Searching notes with clause:', whereClause);
 		const { count, rows } = await Note.findAndCountAll({
@@ -66,9 +68,9 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 			order: [['updated_at', 'DESC']],
 			limit: limit || 50,
 			offset: offset || 0,
+			attributes: isWikilink ? { exclude: ['content'] } : undefined
 		});
-		console.log('Fetched notes:', { userId, count, limit, offset });
-		console.log('Notes data:', rows);
+
 		return { notes: rows, total: count };
 	} catch (error) {
 		console.error('Error fetching notes:', error);
@@ -79,8 +81,30 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 export const getNoteByIdService = async (uid: string, userId: number): Promise<Note | null> => {
 	try {
 		const note = await Note.findOne({
-			where: { note_uid: uid, user_id: userId }
+			where: { note_uid: uid, user_id: userId },
+			include: [
+				{
+					model: WikiLink,
+					as: 'parent_wikilinks',
+					include: [{
+						model: Note,
+						as: 'parent_note',
+						attributes: ['id', 'title', 'note_uid']
+					}]
+				},
+				{
+					model: WikiLink,
+					as: 'child_wikilinks',
+					include: [{
+						model: Note,
+						as: 'child_note',
+						attributes: ['id', 'title', 'note_uid']
+					}]
+				}
+			],
 		});
+
+
 		console.log('Fetched note by uid:', uid, note ? 'found' : 'not found');
 		return note;
 	} catch (error) {

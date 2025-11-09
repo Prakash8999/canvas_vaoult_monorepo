@@ -8,24 +8,24 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Link, Calendar, Hash } from 'lucide-react';
 
 interface BacklinksPanelProps {
-  noteId: string;
+  note_uid: string;
 }
 
-export function BacklinksPanel({ noteId }: BacklinksPanelProps) {
+export function BacklinksPanel({ note_uid }: BacklinksPanelProps) {
   const navigate = useNavigate();
   const { getBacklinks, getBacklinksWithDOM, setCurrentNote, notes } = useEnhancedNoteStore();
   const [refreshKey, setRefreshKey] = React.useState(0);
-  
+  console.log('Rendering BacklinksPanel for note_uid:', note_uid);
   // Force refresh backlinks when notes change or noteId changes
   React.useEffect(() => {
     setRefreshKey(prev => prev + 1);
-  }, [notes, noteId]);
-  
+  }, [notes, note_uid]);
+
   // Get backlinks - force re-computation with refreshKey
   const backlinks = React.useMemo(() => {
-    return getBacklinksWithDOM(noteId);
-  }, [getBacklinksWithDOM, noteId, refreshKey]);
-  
+    return getBacklinksWithDOM(note_uid);
+  }, [getBacklinksWithDOM, note_uid, refreshKey]);
+
   if (backlinks.length === 0) {
     return (
       <Card className="h-full">
@@ -93,7 +93,7 @@ export function BacklinksPanel({ noteId }: BacklinksPanelProps) {
                 
                 {/* Preview of content that contains the link */}
                 <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-                  {getPreviewWithLink(note, notes[noteId]?.name || '')}
+                  {getPreviewWithLink(note, notes[note_uid]?.name || '')}
                 </div>
               </div>
             ))}

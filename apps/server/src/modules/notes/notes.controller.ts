@@ -28,8 +28,9 @@ export const getAllNotes = async (req: Request, res: Response) => {
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
 		const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
 		const search = req.query.search ? (req.query.search as string) : undefined;
+		const isWikilink = req.query.isWikilink === 'true' || req.query.isWikilink ? true : false;
 
-		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search);
+		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink);
 		// console.log('Notes retrieved:', notes);
 
 		const responseData = {
@@ -81,10 +82,10 @@ export const getNote = async (req: Request, res: Response) => {
 		if (!note) {
 			return errorHandler(res, "Note not found", {}, 404);
 		}
-
 		return successHandler(res, "Note fetched successfully", {
 			id: note.dataValues.id,
 			title: note.dataValues.title,
+			userId: note.dataValues.user_id,
 			content: note.dataValues.content,
 			tags: note.dataValues.tags,
 			version: note.dataValues.version,
@@ -92,6 +93,9 @@ export const getNote = async (req: Request, res: Response) => {
 			pinned: note.dataValues.pinned,
 			created_at: note.dataValues.created_at,
 			updated_at: note.dataValues.updated_at,
+			child_wikilinks: note.child_wikilinks,
+			parent_wikilinks: note.parent_wikilinks,
+
 		}, 200);
 	} catch (error) {
 		const errorParser = parseError(error);

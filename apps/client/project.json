@@ -4,20 +4,10 @@
   "sourceRoot": "apps/client/src",
   "targets": {
     "serve": {
-      "executor": "@nx/vite:dev-server",
+      "executor": "nx:run-commands",
       "options": {
-        "buildTarget": "@monorepo/client:build",
-        "configFile": "apps/client/vite.config.ts"
-      },
-      "configurations": {
-        "development": {
-          "buildTarget": "@monorepo/client:build",
-          "mode": "development"
-        },
-        "production": {
-          "buildTarget": "@monorepo/client:build:production",
-          "mode": "production"
-        }
+        "command": "npm run dev",
+        "cwd": "apps/client"
       }
     },
     "build": {

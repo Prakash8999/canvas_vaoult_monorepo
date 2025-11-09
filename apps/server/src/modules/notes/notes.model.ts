@@ -2,6 +2,7 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../../config/database';
 import { z } from 'zod';
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
+import WikiLink from './wikilink.model';
 
 extendZodWithOpenApi(z);
 
@@ -128,6 +129,8 @@ export class Note
 	public pinned!: boolean;
 	public created_at!: Date;
 	public updated_at!: Date;
+	declare public child_wikilinks?: WikiLink[];
+	declare public parent_wikilinks?: WikiLink[];
 }
 
 Note.init(
@@ -150,7 +153,7 @@ Note.init(
 			type: DataTypes.TEXT,
 			allowNull: false,
 		},
-		
+
 		parent_note_id: {
 			type: DataTypes.INTEGER,
 			allowNull: true,
