@@ -12,6 +12,8 @@ interface WikiLinkConfig {
   onNavigateToNote?: (name: string, noteId?: string | null, noteUid?: string | null) => void;
   onSaveCurrentNote?: () => Promise<void>; // New callback to save current note
   onWikiLinkCreated?: (data: OutputData) => Promise<void>;
+  onSearchNotes?: (query: string) => Promise<any[]>; // New callback to search notes
+  onShowSearchResults?: (results: any[], wikiLinkName: string, wikiLinkElement: HTMLElement) => void; // Show search popup
 }
 
 export class WikiLinkTool implements InlineTool {
@@ -19,6 +21,8 @@ export class WikiLinkTool implements InlineTool {
   private config: WikiLinkConfig;
   private button: HTMLElement | null = null;
   private tag: string = 'WIKI-LINK';
+  private static eventDelegationSetup = false;
+  private static activeToolInstance: WikiLinkTool | null = null;
   
   static get isInline() {
     return true;
@@ -37,6 +41,12 @@ export class WikiLinkTool implements InlineTool {
   constructor({ api, config }: InlineToolConstructorOptions) {
     this.api = api;
     this.config = config || {};
+    
+    // Set this as the active tool instance
+    WikiLinkTool.activeToolInstance = this;
+    
+    // Set up event delegation only once globally
+    this.setupEventDelegation();
   }
   
   render(): HTMLElement {
@@ -70,9 +80,6 @@ export class WikiLinkTool implements InlineTool {
     }
     
     buttonEl.className = 'wiki-link-tool-btn';
-    
-    // Setup event delegation when the tool is rendered
-    this.setupEventDelegation();
     
     return buttonEl;
   }
@@ -207,9 +214,9 @@ export class WikiLinkTool implements InlineTool {
   }
 
   private setupEventDelegation(): void {
-    // Only set up once per tool instance
-    if ((this as any).__eventDelegationSetup) return;
-    (this as any).__eventDelegationSetup = true;
+    // Only set up once globally
+    if (WikiLinkTool.eventDelegationSetup) return;
+    WikiLinkTool.eventDelegationSetup = true;
     
     // Use event delegation on document to handle all wiki-link clicks
     const handleWikiLinkClick = async (e: Event) => {
@@ -221,14 +228,23 @@ export class WikiLinkTool implements InlineTool {
         e.stopPropagation();
         e.stopImmediatePropagation();
         
+        // Use the active tool instance for config
+        const activeConfig = WikiLinkTool.activeToolInstance?.config;
+        if (!activeConfig) {
+          console.warn('[WikiLinkTool] No active tool instance found');
+          return;
+        }
+        
         const noteId = wikiLink.getAttribute('data-note-id') || '';
         const noteUid = wikiLink.getAttribute('data-note-uid') || '';
         const noteName = wikiLink.getAttribute('data-note-name') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
 
+        console.log('[WikiLinkTool] Wiki link clicked:', { noteName, noteId, noteUid });
+
         // Auto-save current note before navigation if callback provided
-        if (this.config.onSaveCurrentNote) {
+        if (activeConfig.onSaveCurrentNote) {
           try {
-            await this.config.onSaveCurrentNote();
+            await activeConfig.onSaveCurrentNote();
             console.log('[WikiLinkTool] Auto-saved current note before navigation');
           } catch (error) {
             console.error('[WikiLinkTool] Failed to save current note before navigation:', error);
@@ -236,9 +252,45 @@ export class WikiLinkTool implements InlineTool {
           }
         }
 
-        if (this.config.onNavigateToNote) {
-          // Pass name, numeric id (if any), and canonical note_uid (if any)
-          this.config.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
+        // Check if note has UID - if yes, navigate directly
+        if (noteUid) {
+          console.log('[WikiLinkTool] Note has UID, navigating directly');
+          if (activeConfig.onNavigateToNote) {
+            activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid);
+          }
+        } else {
+          console.log('[WikiLinkTool] No note UID, searching for existing notes');
+          // No note UID - search for existing notes
+          if (activeConfig.onSearchNotes && activeConfig.onShowSearchResults) {
+            try {
+              console.log('[WikiLinkTool] Calling onSearchNotes with:', noteName);
+              const searchResults = await activeConfig.onSearchNotes(noteName);
+              console.log('[WikiLinkTool] Search results:', searchResults);
+              if (searchResults && searchResults.length > 0) {
+                // Show popup with search results
+                console.log('[WikiLinkTool] Showing search results popup');
+                activeConfig.onShowSearchResults(searchResults, noteName, wikiLink as HTMLElement);
+              } else {
+                // No results found, create new note (existing flow)
+                console.log('[WikiLinkTool] No results found, creating new note');
+                if (activeConfig.onNavigateToNote) {
+                  activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
+                }
+              }
+            } catch (error) {
+              console.error('[WikiLinkTool] Failed to search notes:', error);
+              // Fallback to create new note
+              if (activeConfig.onNavigateToNote) {
+                activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
+              }
+            }
+          } else {
+            console.log('[WikiLinkTool] No search callbacks available, using fallback behavior');
+            // Fallback to existing behavior
+            if (activeConfig.onNavigateToNote) {
+              activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
+            }
+          }
         }
       }
     };
@@ -253,6 +305,9 @@ export class WikiLinkTool implements InlineTool {
       const wikiLink = target.closest('wiki-link');
       
       if (wikiLink) {
+        const activeConfig = WikiLinkTool.activeToolInstance?.config;
+        if (!activeConfig) return;
+        
         const content = wikiLink.textContent || '';
         const match = content.match(/\[\[([^\]]+)\]\]/);
         if (match) {
@@ -265,8 +320,8 @@ export class WikiLinkTool implements InlineTool {
           wikiLink.setAttribute('data-note-id', '');
           
           // Try to find existing note with the new name and update IDs
-          if (this.config.onGetNotes) {
-            const notes = this.config.onGetNotes();
+          if (activeConfig.onGetNotes) {
+            const notes = activeConfig.onGetNotes();
             const existingNote = notes.find(note => note.name === newNoteName);
             if (existingNote) {
               wikiLink.setAttribute('data-note-id', existingNote.id);
@@ -281,11 +336,12 @@ export class WikiLinkTool implements InlineTool {
 
     // Update button state when selection changes
     document.addEventListener('selectionchange', () => {
-      if (this.button) {
+      const activeInstance = WikiLinkTool.activeToolInstance;
+      if (activeInstance?.button) {
         const selection = window.getSelection();
-        const buttonEl = this.button as HTMLButtonElement;
+        const buttonEl = activeInstance.button as HTMLButtonElement;
         
-        if (selection && this.checkState(selection)) {
+        if (selection && activeInstance.checkState(selection)) {
           // Show unlink button
           buttonEl.innerHTML = `
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

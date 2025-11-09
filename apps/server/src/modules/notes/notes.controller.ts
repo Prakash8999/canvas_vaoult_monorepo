@@ -28,7 +28,7 @@ export const getAllNotes = async (req: Request, res: Response) => {
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
 		const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
 		const search = req.query.search ? (req.query.search as string) : undefined;
-		const isWikilink = req.query.isWikilink === 'true' || req.query.isWikilink ? true : false;
+		const isWikilink = req.query.isWikiLink === 'true' || req.query.isWikiLink  ? true : false;
 
 		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink);
 		// console.log('Notes retrieved:', notes);
@@ -77,6 +77,7 @@ export const getNote = async (req: Request, res: Response) => {
 		console.log('Fetching note with uid:', uid, 'for userId:', userId);
 		console.log("req.params ", req.params)
 
+
 		const note = await noteService.getNoteByIdService(uid, userId);
 
 		if (!note) {
@@ -110,6 +111,7 @@ export const updateNote = async (req: Request, res: Response) => {
 		if (isNaN(id)) {
 			return errorHandler(res, "Invalid note ID", {}, 400);
 		}
+		console.log("Updating body ", req.body);
 		const note = await noteService.updateNoteService(id, req.body, userId);
 		if (!note) {
 			return errorHandler(res, "Note not found", {}, 404);

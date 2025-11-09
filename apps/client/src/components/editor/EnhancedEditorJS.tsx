@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import EditorJS, { OutputData } from '@editorjs/editorjs';
 import Header from '@editorjs/header';
 import ImageTool from '@editorjs/image';
@@ -22,6 +22,10 @@ import '../../styles/editorjs-custom.css';
 import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
+export interface EnhancedEditorJSRef {
+  saveWithWikiLinkUpdate: () => Promise<void>;
+}
+
 interface EnhancedEditorJSProps {
   data?: OutputData;
   onChange?: (data: OutputData) => void;
@@ -36,9 +40,11 @@ interface EnhancedEditorJSProps {
   onNavigateToNote?: (noteId: string) => Promise<void>; // New prop for navigation
   onSaveCurrentNote?: () => Promise<void>; // New prop for auto-save callback
   onWikiLinkCreated?: (data: OutputData) => Promise<void>;
+  onSearchNotes?: (query: string) => Promise<any[]>; // New prop for searching notes
+  onShowSearchResults?: (results: any[], wikiLinkName: string, wikiLinkElement: HTMLElement) => void; // Show search popup
 }
 
-export function EnhancedEditorJS({ 
+export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJSProps>(function EnhancedEditorJS({ 
   data, 
   onChange, 
   placeholder = "Start writing...",
@@ -52,8 +58,9 @@ export function EnhancedEditorJS({
   onNavigateToNote,
   onSaveCurrentNote,
   onWikiLinkCreated,
-
-}: EnhancedEditorJSProps) {
+  onSearchNotes,
+  onShowSearchResults,
+}: EnhancedEditorJSProps, ref) {
   const editorRef = useRef<EditorJS | null>(null);
   const holderRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +78,46 @@ export function EnhancedEditorJS({
   const { createNote } = useNoteMutations();
   
   // Store latest props in a ref to avoid recreating the editor when props change
-  const propsRef = useRef({ data, onChange, placeholder, readOnly, onImageError , onWikiLinkCreated });
+  const propsRef = useRef({ data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults });
+  
+  // Update propsRef when props change
+  useEffect(() => {
+    propsRef.current = { data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults };
+  }, [data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults]);
+  
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    saveWithWikiLinkUpdate: async () => {
+      if (editorRef.current && typeof editorRef.current.save === 'function') {
+        try {
+          // Set flag to prevent EditorJS onChange from triggering during our save
+          isSavingWikiLinkRef.current = true;
+          
+          const savedData = await editorRef.current.save();
+          console.log('[EnhancedEditorJS] Successfully saved editor content with updated wiki-link');
+          
+          // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
+          if (onWikiLinkCreated) {
+            await onWikiLinkCreated(savedData);
+            console.log('[EnhancedEditorJS] onWikiLinkCreated completed - content saved to database');
+          } else {
+            // Fallback: trigger onChange and force save
+            propsRef.current.onChange?.(savedData);
+            
+            // Force manual save through onSaveCurrentNote if available
+            if (onSaveCurrentNote) {
+              await onSaveCurrentNote();
+            }
+          }
+        } catch (error) {
+          console.error('[EnhancedEditorJS] Failed to save with wiki-link update:', error);
+          throw error;
+        } finally {
+          isSavingWikiLinkRef.current = false;
+        }
+      }
+    }
+  }), [onWikiLinkCreated, onSaveCurrentNote]);
   
   // Set the mode in the store when component mode changes
   useEffect(() => {
@@ -607,6 +653,8 @@ useEffect(() => {
           onNavigateToNote: handleNavigateToNote,
           onSaveCurrentNote: onSaveCurrentNote, // Add auto-save callback
           onWikiLinkCreated: propsRef.current.onWikiLinkCreated,
+          onSearchNotes: propsRef.current.onSearchNotes,
+          onShowSearchResults: propsRef.current.onShowSearchResults,
         }
       },
       runnableCode: {
@@ -669,7 +717,7 @@ useEffect(() => {
 
   // Keep propsRef up to date when props change
   useEffect(() => {
-    propsRef.current = { data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated };
+    propsRef.current = { data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults };
   }, [data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated]);
 
   // Initialize editor only once on mount
@@ -857,4 +905,4 @@ useEffect(() => {
       </div>
     </div>
   );
-}
+});

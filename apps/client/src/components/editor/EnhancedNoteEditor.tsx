@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { EnhancedEditorJS } from './EnhancedEditorJS';
+import { EnhancedEditorJS, type EnhancedEditorJSRef } from './EnhancedEditorJS';
 import { BacklinksPanel } from './panels/BacklinksPanel';
 import { TagsPanel } from './panels/TagsPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { TemplateModal } from './TemplateModal';
 import { SearchResultsSkeleton, PanelSkeleton } from './EditorSkeleton';
+import WikiLinkSearchPopup from './WikiLinkSearchPopup';
 import { toast } from 'sonner';
 
 import type { OutputData } from '@editorjs/editorjs';
@@ -188,6 +189,60 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     }
   };
 
+  // Function to search notes for wiki links
+  const searchNotesForWikiLink = async (query: string): Promise<any[]> => {
+    console.log('[EnhancedNoteEditor] searchNotesForWikiLink called with query:', query);
+    try {
+      const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`${API_BASE_URL}/api/v1/note/notes?search=${encodeURIComponent(query)}&isWikiLink=true&limit=50`, {
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch search results');
+      }
+      const data = await response.json();
+      console.log('[EnhancedNoteEditor] Search API response:', data);
+      // Handle the response format
+      const notesData = data.data;
+      if (Array.isArray(notesData)) {
+        console.log('[EnhancedNoteEditor] Returning array data:', notesData);
+        return notesData;
+      } else if (notesData && notesData.notes) {
+        console.log('[EnhancedNoteEditor] Returning notes data:', notesData.notes);
+        return notesData.notes;
+      } else {
+        console.log('[EnhancedNoteEditor] No valid data found, returning empty array');
+        return [];
+      }
+    } catch (error) {
+      console.error('Error searching notes for wiki link:', error);
+      return [];
+    }
+  };
+
+  // Function to show wiki link search results popup
+  const showWikiLinkSearchResults = (searchResults: any[], wikiLinkName: string, wikiLinkElement: HTMLElement) => {
+    console.log('[EnhancedNoteEditor] showWikiLinkSearchResults called with:', { 
+      searchResults, 
+      wikiLinkName, 
+      wikiLinkElement 
+    });
+    const rect = wikiLinkElement.getBoundingClientRect();
+    setWikiLinkSearchResults(searchResults);
+    setCurrentWikiLinkName(wikiLinkName);
+    setCurrentWikiLinkElement(wikiLinkElement);
+    setPopupPosition({ 
+      x: Math.min(rect.left, window.innerWidth - 340), // Ensure popup doesn't go off-screen
+      y: rect.bottom + 8 
+    });
+    setShowWikiLinkPopup(true);
+    console.log('[EnhancedNoteEditor] Popup should now be visible');
+  };
+
   // Helper function to navigate to a note
   const navigateToNote = async (noteId: string) => {
     // Save current note before navigation if it's dirty
@@ -216,7 +271,15 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
   const [showNotesList, setShowNotesList] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
+  // Wiki link search popup state
+  const [showWikiLinkPopup, setShowWikiLinkPopup] = useState(false);
+  const [wikiLinkSearchResults, setWikiLinkSearchResults] = useState<any[]>([]);
+  const [currentWikiLinkName, setCurrentWikiLinkName] = useState('');
+  const [currentWikiLinkElement, setCurrentWikiLinkElement] = useState<HTMLElement | null>(null);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+
   const notesListRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<EnhancedEditorJSRef>(null);
 
   const currentNote = currentNoteId ? notes[currentNoteId] : null;
   const pinnedNotes = getPinnedNotes();
@@ -484,6 +547,85 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     }
   };
 
+  // Handler for creating new note from wiki link popup
+  const handleWikiLinkCreateNew = async () => {
+    setShowWikiLinkPopup(false);
+    
+    try {
+      // Create a new note with the wiki link name
+      const apiNote = await createNote({ 
+        name: currentWikiLinkName,
+        is_wiki_link: true,
+        parent_note_id: currentNoteId || null 
+      });
+      
+      const newNoteUid = apiNote.note_uid;
+      
+      // Update the wiki link element with the new note's UID
+      if (currentWikiLinkElement && newNoteUid) {
+        currentWikiLinkElement.setAttribute('data-note-uid', newNoteUid);
+        currentWikiLinkElement.setAttribute('data-note-id', apiNote.id.toString());
+        
+        // Find the parent block and trigger an input event on it
+        // This tells EditorJS to re-read the block's content
+        const block = currentWikiLinkElement.closest('.ce-block');
+        if (block) {
+          block.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+        }
+        
+        // Give React and Editor.js a moment to process the change before saving
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        // Force save through the editor ref - this gets current content and saves it
+        if (editorRef.current) {
+          await editorRef.current.saveWithWikiLinkUpdate();
+          console.log('[WikiLinkCreateNew] Successfully saved current note with updated wiki link');
+        }
+      }
+      
+      // Navigate to the newly created note using note_uid
+      navigateToNote(newNoteUid);
+    } catch (error) {
+      console.error('Failed to create new note from wiki link:', error);
+      toast.error('Failed to create new note');
+    }
+  };
+
+  // Handler for selecting existing note from wiki link popup
+  const handleWikiLinkSelectExisting = async (selectedNote: any) => {
+    if (!currentWikiLinkElement || !currentNoteId) return;
+
+    try {
+      // Update the wiki link element with the selected note's UID
+      currentWikiLinkElement.setAttribute('data-note-uid', selectedNote.note_uid);
+      currentWikiLinkElement.setAttribute('data-note-id', selectedNote.id.toString());
+
+      // Find the parent block and trigger an input event on it
+      // This tells EditorJS to re-read the block's content
+      const block = currentWikiLinkElement.closest('.ce-block');
+      if (block) {
+        block.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+      }
+      
+      // Give React and Editor.js a moment to process the change before saving
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Force save through the editor ref - this gets current content and saves it
+      if (editorRef.current) {
+        await editorRef.current.saveWithWikiLinkUpdate();
+        console.log('[WikiLinkSelectExisting] Successfully saved current note with updated wiki link');
+      }
+
+      setShowWikiLinkPopup(false);
+
+      // Navigate to the selected note using note_uid (not the numeric id)
+      navigateToNote(selectedNote.note_uid);
+    } catch (error) {
+      console.error('Failed to update wiki link:', error);
+      toast.error('Failed to link to existing note');
+    }
+  };
+
   // Check if we're in a loading state that should show skeleton
   const isInitialLoading = (notesLoading && Object.keys(notes).length === 0) || isLoadingNote;
 
@@ -515,6 +657,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
             </div>
           ) : (
             <EnhancedEditorJS
+              ref={editorRef}
               key={currentNote?.id}
               width={700}
               data={currentNote?.content}
@@ -527,6 +670,8 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
               onNavigateToNote={navigateToNote}
               onSaveCurrentNote={autoSave.saveManually}
               onWikiLinkCreated={autoSave.saveContentNow}
+              onSearchNotes={searchNotesForWikiLink}
+              onShowSearchResults={showWikiLinkSearchResults}
             />
           )}
         </div>
@@ -1074,6 +1219,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
 
                 <div className="flex-1 min-h-0 overflow-auto">
                   <EnhancedEditorJS
+                    ref={editorRef}
                     key={currentNote.id}
                     data={currentNote.content}
                     onChange={handleNoteChange}
@@ -1086,7 +1232,8 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                     onNavigateToNote={navigateToNote}
                     onSaveCurrentNote={autoSave.saveManually}
                     onWikiLinkCreated={autoSave.saveContentNow}
-
+                    onSearchNotes={searchNotesForWikiLink}
+                    onShowSearchResults={showWikiLinkSearchResults}
                   />
                 </div>
               </div>
@@ -1152,7 +1299,21 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
   );
 
   if (embedded) {
-    return mainContent;
+    return (
+      <>
+        {mainContent}
+        {/* Wiki Link Search Popup for embedded mode */}
+        <WikiLinkSearchPopup
+          isOpen={showWikiLinkPopup}
+          onClose={() => setShowWikiLinkPopup(false)}
+          searchResults={wikiLinkSearchResults}
+          wikiLinkName={currentWikiLinkName}
+          onCreateNew={handleWikiLinkCreateNew}
+          onSelectExisting={handleWikiLinkSelectExisting}
+          position={popupPosition}
+        />
+      </>
+    );
   }
 
   // Standalone mode
@@ -1172,6 +1333,17 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
         isOpen={showTemplateModal}
         onClose={() => setShowTemplateModal(false)}
         onSelectTemplate={handleTemplateSelect}
+      />
+
+      {/* Wiki Link Search Popup */}
+      <WikiLinkSearchPopup
+        isOpen={showWikiLinkPopup}
+        onClose={() => setShowWikiLinkPopup(false)}
+        searchResults={wikiLinkSearchResults}
+        wikiLinkName={currentWikiLinkName}
+        onCreateNew={handleWikiLinkCreateNew}
+        onSelectExisting={handleWikiLinkSelectExisting}
+        position={popupPosition}
       />
     </div>
   );
