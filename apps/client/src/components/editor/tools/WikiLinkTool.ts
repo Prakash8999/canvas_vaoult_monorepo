@@ -9,7 +9,7 @@ interface WikiLinkConfig {
   onGetNotes?: () => Array<{ id: string; name: string; note_uid?: string }>;
   onCreateNote?: (name: string) => void;
   // noteId may be API numeric id or the server-generated note_uid
-  onNavigateToNote?: (name: string, noteId?: string | null, noteUid?: string | null) => void;
+  onNavigateToNote?: (name: string, noteId?: string | null, noteUid?: string | null, clickedElement?: HTMLElement) => void;
   onSaveCurrentNote?: () => Promise<void>; // New callback to save current note
   onWikiLinkCreated?: (data: OutputData) => Promise<void>;
   onSearchNotes?: (query: string) => Promise<any[]>; // New callback to search notes
@@ -239,7 +239,13 @@ export class WikiLinkTool implements InlineTool {
         const noteUid = wikiLink.getAttribute('data-note-uid') || '';
         const noteName = wikiLink.getAttribute('data-note-name') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
 
-        console.log('[WikiLinkTool] Wiki link clicked:', { noteName, noteId, noteUid });
+        console.log('[WikiLinkTool] Wiki link clicked:', { 
+          noteName, 
+          noteId, 
+          noteUid,
+          elementText: wikiLink.textContent,
+          elementHTML: wikiLink.outerHTML.substring(0, 100) + '...'
+        });
 
         // Auto-save current note before navigation if callback provided
         if (activeConfig.onSaveCurrentNote) {
@@ -256,7 +262,7 @@ export class WikiLinkTool implements InlineTool {
         if (noteUid) {
           console.log('[WikiLinkTool] Note has UID, navigating directly');
           if (activeConfig.onNavigateToNote) {
-            activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid);
+            activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid, wikiLink as HTMLElement);
           }
         } else {
           console.log('[WikiLinkTool] No note UID, searching for existing notes');
@@ -274,21 +280,21 @@ export class WikiLinkTool implements InlineTool {
                 // No results found, create new note (existing flow)
                 console.log('[WikiLinkTool] No results found, creating new note');
                 if (activeConfig.onNavigateToNote) {
-                  activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
+                  activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined, wikiLink as HTMLElement);
                 }
               }
             } catch (error) {
               console.error('[WikiLinkTool] Failed to search notes:', error);
               // Fallback to create new note
               if (activeConfig.onNavigateToNote) {
-                activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
+                activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined, wikiLink as HTMLElement);
               }
             }
           } else {
             console.log('[WikiLinkTool] No search callbacks available, using fallback behavior');
             // Fallback to existing behavior
             if (activeConfig.onNavigateToNote) {
-              activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined);
+              activeConfig.onNavigateToNote(noteName, noteId || undefined, noteUid || undefined, wikiLink as HTMLElement);
             }
           }
         }

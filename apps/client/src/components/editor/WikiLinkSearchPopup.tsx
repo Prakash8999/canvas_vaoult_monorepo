@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { Clock, Pin } from 'lucide-react';
+import { Clock, Pin, Loader2 } from 'lucide-react';
 
 interface SearchResult {
   id: number;
@@ -20,7 +20,7 @@ interface WikiLinkSearchPopupProps {
   onClose: () => void;
   searchResults: SearchResult[];
   wikiLinkName: string;
-  onCreateNew: () => void;
+  onNavigateToNote: (noteName: string, noteId?: string | null, noteUid?: string | null) => Promise<void>;
   onSelectExisting: (result: SearchResult) => void;
   position: { x: number; y: number };
 }
@@ -30,10 +30,12 @@ export default function WikiLinkSearchPopup({
   onClose,
   searchResults,
   wikiLinkName,
-  onCreateNew,
+  onNavigateToNote,
   onSelectExisting,
   position
 }: WikiLinkSearchPopupProps) {
+  const [isCreating, setIsCreating] = useState(false);
+  
   if (!isOpen) return null;
 
   const formatDate = (dateStr: string) => {
@@ -42,6 +44,24 @@ export default function WikiLinkSearchPopup({
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const handleCreateNew = async () => {
+    if (isCreating) return;
+    
+    setIsCreating(true);
+    try {
+      // Close popup immediately to show loading on button
+      onClose();
+      // Call the proper navigation handler from EnhancedEditorJS
+      await onNavigateToNote(wikiLinkName, null, null);
+    } catch (error) {
+      console.error('Failed to create new note:', error);
+      // The error will be handled by the parent component via toast
+    } finally {
+      // Reset loading state
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -96,12 +116,20 @@ export default function WikiLinkSearchPopup({
 
         <div className="p-4 border-t border-gray-100">
           <Button 
-            onClick={onCreateNew}
+            onClick={handleCreateNew}
             variant="outline"
             size="sm"
             className="w-full"
+            disabled={isCreating}
           >
-            Create New Note
+            {isCreating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Creating...
+              </>
+            ) : (
+              'Create New Note Test'
+            )}
           </Button>
         </div>
       </div>

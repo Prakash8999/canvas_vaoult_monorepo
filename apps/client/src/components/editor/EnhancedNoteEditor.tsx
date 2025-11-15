@@ -626,6 +626,8 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     }
   };
 
+
+
   // Check if we're in a loading state that should show skeleton
   const isInitialLoading = (notesLoading && Object.keys(notes).length === 0) || isLoadingNote;
 
@@ -1308,7 +1310,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
           onClose={() => setShowWikiLinkPopup(false)}
           searchResults={wikiLinkSearchResults}
           wikiLinkName={currentWikiLinkName}
-          onCreateNew={handleWikiLinkCreateNew}
+          onNavigateToNote={editorRef.current?.handleNavigateToNote || navigateToNote}
           onSelectExisting={handleWikiLinkSelectExisting}
           position={popupPosition}
         />
@@ -1341,7 +1343,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
         onClose={() => setShowWikiLinkPopup(false)}
         searchResults={wikiLinkSearchResults}
         wikiLinkName={currentWikiLinkName}
-        onCreateNew={handleWikiLinkCreateNew}
+        onNavigateToNote={editorRef.current?.handleNavigateToNote || navigateToNote}
         onSelectExisting={handleWikiLinkSelectExisting}
         position={popupPosition}
       />

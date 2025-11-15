@@ -236,7 +236,7 @@ export default function NotesListPage() {
     queryClient.invalidateQueries({ queryKey: ['notes'] });
   }, [queryClient]);
 
-  console.log("displayedNotes ", displayedNotes)
+  // console.log("displayedNotes ", displayedNotes)
   // Welcome content for first note
   const handleCreateNote = async () => {
     // Stronger guard against concurrent execution
@@ -304,7 +304,7 @@ export default function NotesListPage() {
 
 
   const handleOpenNote = (noteId: string) => {
-    console.log('handleOpenNote called with id:', noteId);
+    // console.log('handleOpenNote called with id:', noteId);
     if (!noteId) {
       console.warn('handleOpenNote called with empty id');
       return;

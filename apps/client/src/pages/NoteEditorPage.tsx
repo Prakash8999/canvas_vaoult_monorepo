@@ -14,7 +14,7 @@ export default function NoteEditorPage() {
   const { createNote } = useNoteMutations();
   const { setCurrentNote } = useEnhancedNoteStore();
 
-  console.log('NoteEditorPage loaded with id:', uid);
+  // console.log('NoteEditorPage loaded with id:', uid);
   
   // If no id param: create a new note then navigate
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function NoteEditorPage() {
   const numericId = uid ? parseInt(uid, 10) : null;
   const invalidId = uid && (uid.length === 0 || uid.length !== 36); // Example: check for UUID length; 
   const { data: fetchedNote, isLoading, error } = useNote(uid && !invalidId ? uid : '');
-console.log('useNote fetch result:', { fetchedNote, isLoading, error, uid, invalidId });
+// console.log('useNote fetch result:', { fetchedNote, isLoading, error, uid, invalidId });
   useEffect(() => {
     if (!uid || invalidId) return; // handled above
     if (fetchedNote) {
@@ -80,7 +80,7 @@ console.log('useNote fetch result:', { fetchedNote, isLoading, error, uid, inval
 
   // Redirect on invalid id or hard fetch error (e.g., 404)
   useEffect(() => {
-    console.log('Checking for navigation due to invalidId or error:', { invalidId, error, uid });
+    // console.log('Checking for navigation due to invalidId or error:', { invalidId, error, uid });
     if (invalidId) {
       navigate('/notes', { replace: true });
     } else if (error) {

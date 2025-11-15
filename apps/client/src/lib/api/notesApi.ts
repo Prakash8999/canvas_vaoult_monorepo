@@ -51,7 +51,7 @@ const getAuthHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-console.log('API_BASE_URL:', API_BASE_URL, getAuthHeaders().Authorization);
+console.log('API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,

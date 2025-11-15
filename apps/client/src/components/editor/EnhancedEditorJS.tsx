@@ -24,6 +24,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 export interface EnhancedEditorJSRef {
   saveWithWikiLinkUpdate: () => Promise<void>;
+  handleNavigateToNote: (noteName: string, noteId?: string | null, noteUid?: string | null) => Promise<void>;
 }
 
 interface EnhancedEditorJSProps {
@@ -85,39 +86,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     propsRef.current = { data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults };
   }, [data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults]);
   
-  // Expose methods to parent component
-  useImperativeHandle(ref, () => ({
-    saveWithWikiLinkUpdate: async () => {
-      if (editorRef.current && typeof editorRef.current.save === 'function') {
-        try {
-          // Set flag to prevent EditorJS onChange from triggering during our save
-          isSavingWikiLinkRef.current = true;
-          
-          const savedData = await editorRef.current.save();
-          console.log('[EnhancedEditorJS] Successfully saved editor content with updated wiki-link');
-          
-          // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
-          if (onWikiLinkCreated) {
-            await onWikiLinkCreated(savedData);
-            console.log('[EnhancedEditorJS] onWikiLinkCreated completed - content saved to database');
-          } else {
-            // Fallback: trigger onChange and force save
-            propsRef.current.onChange?.(savedData);
-            
-            // Force manual save through onSaveCurrentNote if available
-            if (onSaveCurrentNote) {
-              await onSaveCurrentNote();
-            }
-          }
-        } catch (error) {
-          console.error('[EnhancedEditorJS] Failed to save with wiki-link update:', error);
-          throw error;
-        } finally {
-          isSavingWikiLinkRef.current = false;
-        }
-      }
-    }
-  }), [onWikiLinkCreated, onSaveCurrentNote]);
+
   
   // Set the mode in the store when component mode changes
   useEffect(() => {
@@ -168,6 +137,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     }));
   }, [notes]);
   
+  
   // Helper function to update WikiLinks with note IDs
   const updateWikiLinksWithId = useCallback((noteName: string, noteId: string) => {
     // Find all WikiLinks with this name and update their data-note-id
@@ -180,6 +150,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
   // Helper function to update all WikiLinks when editor content changes
   const updateAllWikiLinkIds = useCallback(() => {
     const wikiLinks = document.querySelectorAll('wiki-link[data-note-name]');
+    let updatedCount = 0;
     
     wikiLinks.forEach(link => {
       const noteName = link.getAttribute('data-note-name');
@@ -188,50 +159,99 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       // Only update if the link doesn't already have a valid ID
       if (noteName && (!existingNoteId || existingNoteId.trim() === '' || !notes[existingNoteId])) {
         const existingNote = Object.values(notes).find(note => note.name === noteName);
-        if (existingNote) {
+        if (existingNote && existingNote.id !== existingNoteId) {
           link.setAttribute('data-note-id', existingNote.id);
+          updatedCount++;
         }
       }
     });
+    
+    if (updatedCount > 0) {
+      console.log(`[WikiLink] Updated ${updatedCount} WikiLink IDs`);
+    }
   }, [notes]);
 
   // Helper function to disable WikiLink during creation
-  const disableWikiLink = useCallback((noteName: string) => {
-    const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
-    wikiLinks.forEach(link => {
-      (link as HTMLElement).style.pointerEvents = 'none';
-      (link as HTMLElement).style.opacity = '0.5';
-      (link as HTMLElement).style.cursor = 'not-allowed';
-      (link as HTMLElement).style.backgroundColor = '#f3f4f6';
-      (link as HTMLElement).style.borderRadius = '4px';
-      (link as HTMLElement).style.padding = '2px 4px';
-      (link as HTMLElement).style.transition = 'all 0.2s ease';
-      link.setAttribute('data-creating', 'true');
-      link.setAttribute('title', 'Creating note...');
-    });
+  const disableWikiLink = useCallback((noteName: string, specificElement?: HTMLElement) => {
+    if (specificElement) {
+      // Disable only the specific clicked element
+      specificElement.style.pointerEvents = 'none';
+      specificElement.style.opacity = '0.5';
+      specificElement.style.cursor = 'not-allowed';
+      specificElement.style.backgroundColor = '#f3f4f6';
+      specificElement.style.borderRadius = '4px';
+      specificElement.style.padding = '2px 4px';
+      specificElement.style.transition = 'all 0.2s ease';
+      specificElement.setAttribute('data-creating', 'true');
+      specificElement.setAttribute('title', 'Creating note...');
+      console.log(`[WikiLink] Disabled specific WikiLink for: ${noteName}`);
+    } else {
+      // Fallback: disable all elements with the same name (old behavior)
+      const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+      wikiLinks.forEach(link => {
+        (link as HTMLElement).style.pointerEvents = 'none';
+        (link as HTMLElement).style.opacity = '0.5';
+        (link as HTMLElement).style.cursor = 'not-allowed';
+        (link as HTMLElement).style.backgroundColor = '#f3f4f6';
+        (link as HTMLElement).style.borderRadius = '4px';
+        (link as HTMLElement).style.padding = '2px 4px';
+        (link as HTMLElement).style.transition = 'all 0.2s ease';
+        link.setAttribute('data-creating', 'true');
+        link.setAttribute('title', 'Creating note...');
+      });
+      console.log(`[WikiLink] Disabled all WikiLinks for: ${noteName}`);
+    }
     creatingWikiLinksRef.current.add(noteName);
-    console.log(`[WikiLink] Disabled WikiLink for: ${noteName}`);
   }, []);
 
   // Helper function to enable WikiLink after creation
-  const enableWikiLink = useCallback((noteName: string) => {
-    const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
-    wikiLinks.forEach(link => {
-      (link as HTMLElement).style.pointerEvents = '';
-      (link as HTMLElement).style.opacity = '';
-      (link as HTMLElement).style.cursor = '';
-      (link as HTMLElement).style.backgroundColor = '';
-      (link as HTMLElement).style.borderRadius = '';
-      (link as HTMLElement).style.padding = '';
-      (link as HTMLElement).style.transition = '';
-      link.removeAttribute('data-creating');
-      link.removeAttribute('title');
-    });
+  const enableWikiLink = useCallback((noteName: string, specificElement?: HTMLElement) => {
+    if (specificElement) {
+      // Enable only the specific element
+      specificElement.style.pointerEvents = '';
+      specificElement.style.opacity = '';
+      specificElement.style.cursor = '';
+      specificElement.style.backgroundColor = '';
+      specificElement.style.borderRadius = '';
+      specificElement.style.padding = '';
+      specificElement.style.transition = '';
+      specificElement.removeAttribute('data-creating');
+      specificElement.removeAttribute('title');
+      console.log(`[WikiLink] Enabled specific WikiLink for: ${noteName}`);
+    } else {
+      // Fallback: enable all elements with the same name (old behavior)
+      const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+      wikiLinks.forEach(link => {
+        (link as HTMLElement).style.pointerEvents = '';
+        (link as HTMLElement).style.opacity = '';
+        (link as HTMLElement).style.cursor = '';
+        (link as HTMLElement).style.backgroundColor = '';
+        (link as HTMLElement).style.borderRadius = '';
+        (link as HTMLElement).style.padding = '';
+        (link as HTMLElement).style.transition = '';
+        link.removeAttribute('data-creating');
+        link.removeAttribute('title');
+      });
+      console.log(`[WikiLink] Enabled all WikiLinks for: ${noteName}`);
+    }
     creatingWikiLinksRef.current.delete(noteName);
-    console.log(`[WikiLink] Enabled WikiLink for: ${noteName}`);
   }, []);
   
-  const handleNavigateToNote = useCallback(async (noteName: string, noteId?: string | null, noteUid?: string | null) => {
+  // Store reference to the currently clicked WikiLink element
+  const clickedWikiLinkRef = useRef<HTMLElement | null>(null);
+
+  const handleNavigateToNote = useCallback(async (noteName: string, noteId?: string | null, noteUid?: string | null, clickedElement?: HTMLElement) => {
+    // Store the clicked element reference for later use
+    clickedWikiLinkRef.current = clickedElement || null;
+    
+    if (clickedElement) {
+      console.log('[WikiLink] Stored reference to clicked element:', {
+        noteName,
+        elementText: clickedElement.textContent,
+        noteId: clickedElement.getAttribute('data-note-id'),
+        noteUid: clickedElement.getAttribute('data-note-uid')
+      });
+    }
     const freshNotes = useEnhancedNoteStore.getState().notes;
 
     // Prefer note_uid navigation when available in the wiki link
@@ -342,7 +362,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     console.log(`[WikiLink] Creating new note: ${noteName}`);
     
     // Disable the WikiLink during creation to prevent multiple clicks
-    disableWikiLink(noteName);
+    disableWikiLink(noteName, clickedWikiLinkRef.current || undefined);
     
     try {
       const isFirstNote = Object.keys(freshNotes).length === 0;
@@ -440,14 +460,54 @@ const newNotePayload: any = {
   console.log('[WikiLink] createNote response:', newApiNote);
   console.log(`[WikiLink] Created note with ID: ${newNoteId}, UID: ${newNoteUid}`);
 
-    // Update wiki-link DOM elements with the canonical uid and numeric id
-    const wikiLinksToUpdate = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
-    wikiLinksToUpdate.forEach(link => {
-      if (newNoteId) link.setAttribute('data-note-id', newNoteId);
-      if (newNoteUid) link.setAttribute('data-note-uid', newNoteUid);
-    });
+    // Update only the specific clicked wiki-link element, not all elements with the same name
+    let updatedCount = 0;
+    const clickedLink = clickedWikiLinkRef.current;
+    
+    if (clickedLink) {
+      // Update only the clicked element
+      const oldNoteId = clickedLink.getAttribute('data-note-id');
+      const oldNoteUid = clickedLink.getAttribute('data-note-uid');
+      
+      if (newNoteId) clickedLink.setAttribute('data-note-id', newNoteId);
+      if (newNoteUid) clickedLink.setAttribute('data-note-uid', newNoteUid);
+      updatedCount = 1;
+      
+      console.log(`[WikiLink] Updated the specific clicked WikiLink element:`, {
+        noteName,
+        elementText: clickedLink.textContent,
+        oldNoteId,
+        newNoteId,
+        oldNoteUid,
+        newNoteUid,
+        elementHTML: clickedLink.outerHTML.substring(0, 100) + '...'
+      });
+      
+      // Clear the clicked element reference after successful update
+      clickedWikiLinkRef.current = null;
+    } else {
+      // Fallback: if we don't have the clicked element reference, update all (old behavior)
+      console.warn('[WikiLink] No clicked element reference, falling back to updating all WikiLinks with same name');
+      const wikiLinksToUpdate = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+      wikiLinksToUpdate.forEach((link, index) => {
+        const oldNoteId = link.getAttribute('data-note-id');
+        const oldNoteUid = link.getAttribute('data-note-uid');
+        if (newNoteId) link.setAttribute('data-note-id', newNoteId);
+        if (newNoteUid) link.setAttribute('data-note-uid', newNoteUid);
+        
+        console.log(`[WikiLink] Updated WikiLink ${index + 1}:`, {
+          noteName,
+          elementText: link.textContent,
+          oldNoteId,
+          newNoteId,
+          oldNoteUid,
+          newNoteUid
+        });
+      });
+      updatedCount = wikiLinksToUpdate.length;
+    }
 
-    console.log(`[WikiLink] Updated ${wikiLinksToUpdate.length} WikiLink elements with new note_uid: ${newNoteUid}`);
+    console.log(`[WikiLink] Updated ${updatedCount} WikiLink element(s) with new note_uid: ${newNoteUid}`);
 
     // Attempt to persist the updated wiki-link attributes by triggering editor save
     // This is critical to ensure the note_uid is saved back to the current note's content
@@ -502,17 +562,17 @@ const newNotePayload: any = {
     } catch (error) {
       console.error(`[WikiLink] Failed to create note: ${noteName}`, error);
       // Re-enable the WikiLink on error
-      enableWikiLink(noteName);
+      enableWikiLink(noteName, clickedWikiLinkRef.current || undefined);
       throw error; // Re-throw to let parent handlers know about the error
     } finally {
       // Always re-enable the WikiLink after creation process (success or failure)
       // Use setTimeout to ensure navigation completes first
       setTimeout(() => {
-        enableWikiLink(noteName);
+        enableWikiLink(noteName, clickedWikiLinkRef.current || undefined);
       }, 100);
     }
   }, [setCurrentNote, createNote, onNavigateToNote, updateWikiLinksWithId, notes, editorRef, onChange, onSaveCurrentNote, disableWikiLink, enableWikiLink]);
-  console.log('localStorage', localStorage.getItem('auth_token'));
+  // console.log('localStorage', localStorage.getItem('auth_token'));
   const handleCodeExecution = useCallback(async (code: string, language: string) => {
     return await codeExecutionService.executeCode(code, language);
   }, []);
@@ -710,7 +770,7 @@ useEffect(() => {
     // Update WikiLink IDs after editor is ready
     editor.isReady.then(() => {
       setTimeout(() => {
-        updateAllWikiLinkIds();
+        updateAllWikiLinkIds(); // Update note IDs for existing WikiLinks
       }, 500);
     });
   }, [mode, getAvailableNotes, handleNavigateToNote, handleCodeExecution, updateAllWikiLinkIds, onSaveCurrentNote]);
@@ -732,7 +792,7 @@ useEffect(() => {
       
       // Re-enable any disabled WikiLinks on cleanup
       creatingWikiLinksRef.current.forEach(noteName => {
-        enableWikiLink(noteName);
+        enableWikiLink(noteName); // Don't pass specific element for cleanup
       });
       creatingWikiLinksRef.current.clear();
     };
@@ -753,8 +813,13 @@ useEffect(() => {
     }
   }, [data, initializeEditor]);
 
-  // Update WikiLink IDs when notes change
+  // Update WikiLink IDs when notes change (but not during WikiLink creation)
   useEffect(() => {
+    // Skip if we're currently creating/saving WikiLinks to prevent interference
+    if (isSavingWikiLinkRef.current || creatingWikiLinksRef.current.size > 0) {
+      return;
+    }
+    
     const timer = setTimeout(() => {
       updateAllWikiLinkIds();
     }, 100);
@@ -772,6 +837,41 @@ useEffect(() => {
       return () => clearTimeout(timer);
     }
   }, [currentNoteId, updateAllWikiLinkIds]);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    saveWithWikiLinkUpdate: async () => {
+      if (editorRef.current && typeof editorRef.current.save === 'function') {
+        try {
+          // Set flag to prevent EditorJS onChange from triggering during our save
+          isSavingWikiLinkRef.current = true;
+          
+          const savedData = await editorRef.current.save();
+          console.log('[EnhancedEditorJS] Successfully saved editor content with updated wiki-link');
+          
+          // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
+          if (onWikiLinkCreated) {
+            await onWikiLinkCreated(savedData);
+            console.log('[EnhancedEditorJS] onWikiLinkCreated completed - content saved to database');
+          } else {
+            // Fallback: trigger onChange and force save
+            propsRef.current.onChange?.(savedData);
+            
+            // Force manual save through onSaveCurrentNote if available
+            if (onSaveCurrentNote) {
+              await onSaveCurrentNote();
+            }
+          }
+        } catch (error) {
+          console.error('[EnhancedEditorJS] Failed to save with wiki-link update:', error);
+          throw error;
+        } finally {
+          isSavingWikiLinkRef.current = false;
+        }
+      }
+    },
+    handleNavigateToNote: handleNavigateToNote
+  }), [onWikiLinkCreated, onSaveCurrentNote, handleNavigateToNote]);
   
   // Handle search functionality
   const handleSearch = (query: string) => {
