@@ -132,7 +132,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
   const getAvailableNotes = useCallback(() => {
     return Object.values(notes).map(note => ({
       id: note.id,
-      name: note.name,
+      title: note.title,
       note_uid: (note as any).note_uid, // Include note_uid for WikiLink matching
     }));
   }, [notes]);
@@ -140,8 +140,8 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
   
   // Helper function to update WikiLinks with note IDs
   const updateWikiLinksWithId = useCallback((noteName: string, noteId: string) => {
-    // Find all WikiLinks with this name and update their data-note-id
-    const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+    // Find all WikiLinks with this title and update their data-note-id
+    const wikiLinks = document.querySelectorAll(`wiki-link[data-note-title="${noteName}"]`);
     wikiLinks.forEach(link => {
       link.setAttribute('data-note-id', noteId);
     });
@@ -170,8 +170,8 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       specificElement.setAttribute('title', 'Creating note...');
       console.log(`[WikiLink] Disabled specific WikiLink for: ${noteName}`);
     } else {
-      // Fallback: disable all elements with the same name (old behavior)
-      const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+      // Fallback: disable all elements with the same title (old behavior)
+      const wikiLinks = document.querySelectorAll(`wiki-link[data-note-title="${noteName}"]`);
       wikiLinks.forEach(link => {
         (link as HTMLElement).style.pointerEvents = 'none';
         (link as HTMLElement).style.opacity = '0.5';
@@ -203,8 +203,8 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       specificElement.removeAttribute('title');
       console.log(`[WikiLink] Enabled specific WikiLink for: ${noteName}`);
     } else {
-      // Fallback: enable all elements with the same name (old behavior)
-      const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+      // Fallback: enable all elements with the same title (old behavior)
+      const wikiLinks = document.querySelectorAll(`wiki-link[data-note-title="${noteName}"]`);
       wikiLinks.forEach(link => {
         (link as HTMLElement).style.pointerEvents = '';
         (link as HTMLElement).style.opacity = '';
@@ -288,13 +288,13 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       return;
     }
 
-    // If an existing note by name is found, prefer it
-    const existingNote = Object.values(freshNotes).find(note => note.name === noteName);
+    // If an existing note by title is found, prefer it
+    const existingNote = Object.values(freshNotes).find(note => note.title === noteName);
     if (existingNote) {
       // If API exposes note_uid, add it to wiki-link elements
       if ((existingNote as any).note_uid) {
         const uid = (existingNote as any).note_uid;
-        const wikiLinks = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+        const wikiLinks = document.querySelectorAll(`wiki-link[data-note-title="${noteName}"]`);
         wikiLinks.forEach(link => {
           link.setAttribute('data-note-id', existingNote.id);
           link.setAttribute('data-note-uid', uid);
@@ -328,7 +328,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     // let newApiNote;
     // if (isFirstNote) {
     //   newApiNote = await createNote({
-    //     name: noteName,
+    //     title: noteName,
     //     content: {
     //       blocks: [
     //         {
@@ -361,12 +361,12 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     //     }
     //   });
     // } else {
-    //   newApiNote = await createNote({ name: noteName });
+    //   newApiNote = await createNote({ title: noteName });
     // }
 
 
 const newNotePayload: any = {
-      name: noteName,
+      title: noteName,
       is_wiki_link: true,
       parent_note_id: currentNoteId || null // currentNoteId IS the parent!
     };
@@ -419,7 +419,7 @@ const newNotePayload: any = {
   console.log('[WikiLink] createNote response:', newApiNote);
   console.log(`[WikiLink] Created note with ID: ${newNoteId}, UID: ${newNoteUid}`);
 
-    // Update only the specific clicked wiki-link element, not all elements with the same name
+    // Update only the specific clicked wiki-link element, not all elements with the same title
     let updatedCount = 0;
     const clickedLink = clickedWikiLinkRef.current;
     
@@ -446,8 +446,8 @@ const newNotePayload: any = {
       clickedWikiLinkRef.current = null;
     } else {
       // Fallback: if we don't have the clicked element reference, update all (old behavior)
-      console.warn('[WikiLink] No clicked element reference, falling back to updating all WikiLinks with same name');
-      const wikiLinksToUpdate = document.querySelectorAll(`wiki-link[data-note-name="${noteName}"]`);
+      console.warn('[WikiLink] No clicked element reference, falling back to updating all WikiLinks with same title');
+      const wikiLinksToUpdate = document.querySelectorAll(`wiki-link[data-note-title="${noteName}"]`);
       wikiLinksToUpdate.forEach((link, index) => {
         const oldNoteId = link.getAttribute('data-note-id');
         const oldNoteUid = link.getAttribute('data-note-uid');
@@ -553,7 +553,7 @@ useEffect(() => {
         e.stopPropagation();
         e.stopImmediatePropagation();
 
-        const noteName = wikiLink.getAttribute('data-note-name') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
+        const noteName = wikiLink.getAttribute('data-note-title') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
         
         // Check if this WikiLink is already being created
         if (wikiLink.getAttribute('data-creating') === 'true' || creatingWikiLinksRef.current.has(noteName)) {

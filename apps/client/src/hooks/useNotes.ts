@@ -32,7 +32,6 @@ export const useInfiniteNotes = (pageSize = 10) => {
       const explicitHasMore = response.pagination?.hasMore;
       const inferredHasMore = response.notes.length === pageSize;
       const hasMore = explicitHasMore !== undefined ? explicitHasMore : inferredHasMore;
-
       return {
         notes: notesRecord,
         nextOffset: hasMore ? (pageParam as number) + pageSize : undefined,
@@ -86,18 +85,18 @@ export const useNoteMutations = () => {
 
   const createNoteMutation = useMutation({
     mutationFn: async ({ 
-      name, 
+      title, 
       content, 
       is_wiki_link, 
       parent_note_id 
     }: { 
-      name: string; 
+      title: string; 
       content?: OutputData; 
       is_wiki_link?: boolean; 
       parent_note_id?: string | null; 
     }) => {
       const noteData: any = {
-        title: name,
+        title: title,
         content: content || { blocks: [] },
         tags: [],
         pinned: false,
@@ -130,7 +129,7 @@ export const useNoteMutations = () => {
   const updateNoteMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<any> }) => {
       const updateData: any = {};
-      if (updates.name !== undefined) updateData.title = updates.name;
+      if (updates.title !== undefined) updateData.title = updates.title;
       if (updates.content !== undefined) updateData.content = updates.content;
       if (updates.isPinned !== undefined) updateData.pinned = updates.isPinned;
       if (updates.tags !== undefined) updateData.tags = updates.tags;

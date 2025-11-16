@@ -8,10 +8,13 @@ import { notesApi, convertApiNoteToLocal, convertLocalNoteToApi } from '../lib/a
 
 export interface Note {
   id: string;
-  name: string;
+  title: string;
+  note_uid: string;
   content: OutputData;
   tags: string[];
   createdAt: number;
+  parent_wikilinks?: [];
+  child_wikilinks?: [];
   modifiedAt: number;
   isPinned: boolean;
   wordCount: number;
@@ -42,7 +45,7 @@ interface EnhancedNoteState {
   // Actions
   setCurrentNote: (note_uid: string | null) => void;
   setNotesFromRecords: (notes: Record<string, Note>) => void; // For hydration
-  
+
   // UI actions
   setMode: (mode: 'full' | 'light') => void;
   toggleBacklinks: () => void;
@@ -50,17 +53,18 @@ interface EnhancedNoteState {
   toggleGraphView: () => void;
   setSearchQuery: (query: string) => void;
   setTagFilter: (tag: string | null) => void;
-  
+
   // Advanced features
   searchNotes: (query: string) => Note[];
   getBacklinks: (noteId: string) => Note[];
+  frontLinks: (noteId: string) => Note[];
   getBacklinksWithDOM: (noteId: string) => Note[];
   getAllTags: () => string[];
   getCurrentNoteId: () => string | null;
   getLinkedNotes: (noteId: string) => Note[];
   extractLinks: (content: OutputData) => string[];
   extractTags: (content: OutputData) => string[];
-  
+
   getPinnedNotes: () => Note[];
 }
 
@@ -68,7 +72,7 @@ const CURRENT_NOTE_KEY = 'vcw:currentNoteId';
 
 const calculateWordCount = (content: OutputData): number => {
   if (!content.blocks) return 0;
-  
+
   return content.blocks.reduce((count, block) => {
     if (block.data?.text) {
       const text = typeof block.data.text === 'string' ? block.data.text : '';
@@ -80,21 +84,21 @@ const calculateWordCount = (content: OutputData): number => {
 };
 
 // Extract WikiLink IDs and names from content
-const extractLinksFromContent = (content: OutputData): Array<{id: string | null, name: string}> => {
+const extractLinksFromContent = (content: OutputData): Array<{ id: string | null, title: string }> => {
   if (!content.blocks) return [];
-  
-  const links: Array<{id: string | null, name: string}> = [];
+
+  const links: Array<{ id: string | null, title: string }> = [];
   const linkRegex = /\[\[([^\]]+)\]\]/g;
-  const wikiLinkRegex = /<wiki-link[^>]*data-note-name="([^"]*)"[^>]*>/g;
-  
+  const wikiLinkRegex = /<wiki-link[^>]*data-note-title="([^"]*)"[^>]*>/g;
+
   content.blocks.forEach(block => {
     let textToCheck = '';
-    
+
     // Handle different block types
     if (block.data?.text) {
       textToCheck = typeof block.data.text === 'string' ? block.data.text : '';
     }
-    
+
     // Check for links in the main text
     if (textToCheck) {
       // Check for plain [[]] syntax
@@ -103,21 +107,21 @@ const extractLinksFromContent = (content: OutputData): Array<{id: string | null,
       while ((match = linkRegex.exec(textToCheck)) !== null) {
         const linkName = match[1].trim();
         if (linkName) {
-          links.push({ id: null, name: linkName });
+          links.push({ id: null, title: linkName });
         }
       }
-      
+
       // Check for HTML wiki-link elements
       wikiLinkRegex.lastIndex = 0;
       let htmlMatch;
       while ((htmlMatch = wikiLinkRegex.exec(textToCheck)) !== null) {
         const linkName = htmlMatch[1].trim();
         if (linkName) {
-          links.push({ id: null, name: linkName });
+          links.push({ id: null, title: linkName });
         }
       }
     }
-    
+
     // Also check for links in list items
     if (block.type === 'list' && block.data?.items && Array.isArray(block.data.items)) {
       block.data.items.forEach((item: any) => {
@@ -129,47 +133,47 @@ const extractLinksFromContent = (content: OutputData): Array<{id: string | null,
           while ((match = linkRegex.exec(itemText)) !== null) {
             const linkName = match[1].trim();
             if (linkName) {
-              links.push({ id: null, name: linkName });
+              links.push({ id: null, title: linkName });
             }
           }
-          
+
           // Check for HTML wiki-link elements
           wikiLinkRegex.lastIndex = 0;
           let htmlMatch;
           while ((htmlMatch = wikiLinkRegex.exec(itemText)) !== null) {
             const linkName = htmlMatch[1].trim();
             if (linkName) {
-              links.push({ id: null, name: linkName });
+              links.push({ id: null, title: linkName });
             }
           }
         }
       });
     }
   });
-  
-  // Remove duplicates by name
-  const uniqueLinks = links.filter((link, index, self) => 
-    index === self.findIndex(l => l.name === link.name)
+
+  // Remove duplicates by title
+  const uniqueLinks = links.filter((link, index, self) =>
+    index === self.findIndex(l => l.title === link.title)
   );
-  
+
   return uniqueLinks;
 };
 
 // Legacy function for backward compatibility
 const extractLinksFromContentLegacy = (content: OutputData): string[] => {
   if (!content.blocks) return [];
-  
+
   const links: string[] = [];
   const linkRegex = /\[\[([^\]]+)\]\]/g;
-  const wikiLinkRegex = /<wiki-link[^>]*data-note-name="([^"]*)"[^>]*>/g;
-  
+  const wikiLinkRegex = /<wiki-link[^>]*data-note-title="([^"]*)"[^>]*>/g;
+
   content.blocks.forEach(block => {
     let textToCheck = '';
-    
+
     if (block.data?.text) {
       textToCheck = typeof block.data.text === 'string' ? block.data.text : '';
     }
-    
+
     if (textToCheck) {
       // Check for plain [[]] syntax
       linkRegex.lastIndex = 0;
@@ -180,7 +184,7 @@ const extractLinksFromContentLegacy = (content: OutputData): string[] => {
           links.push(linkName);
         }
       }
-      
+
       // Check for HTML wiki-link elements
       wikiLinkRegex.lastIndex = 0;
       let htmlMatch;
@@ -191,7 +195,7 @@ const extractLinksFromContentLegacy = (content: OutputData): string[] => {
         }
       }
     }
-    
+
     // Also check list items
     if (block.type === 'list' && block.data?.items && Array.isArray(block.data.items)) {
       block.data.items.forEach((item: any) => {
@@ -206,7 +210,7 @@ const extractLinksFromContentLegacy = (content: OutputData): string[] => {
               links.push(linkName);
             }
           }
-          
+
           // Check for HTML wiki-link elements
           wikiLinkRegex.lastIndex = 0;
           let htmlMatch;
@@ -220,25 +224,25 @@ const extractLinksFromContentLegacy = (content: OutputData): string[] => {
       });
     }
   });
-  
+
   // Remove duplicates
   return [...new Set(links)];
 };
 
 const extractTagsFromContent = (content: OutputData): string[] => {
   if (!content.blocks) return [];
-  
+
   const tags: string[] = [];
   const tagRegex = /#([a-zA-Z0-9_]+)/g;
-  
+
   content.blocks.forEach(block => {
     let textToCheck = '';
-    
+
     // Handle different block types
     if (block.data?.text) {
       textToCheck = typeof block.data.text === 'string' ? block.data.text : '';
     }
-    
+
     // Check for tags in the main text
     if (textToCheck) {
       tagRegex.lastIndex = 0;
@@ -247,7 +251,7 @@ const extractTagsFromContent = (content: OutputData): string[] => {
         tags.push(match[1].toLowerCase());
       }
     }
-    
+
     // Also check for tags in list items
     if (block.type === 'list' && block.data?.items && Array.isArray(block.data.items)) {
       block.data.items.forEach((item: any) => {
@@ -262,7 +266,7 @@ const extractTagsFromContent = (content: OutputData): string[] => {
       });
     }
   });
-  
+
   return [...new Set(tags)]; // Remove duplicates
 };
 
@@ -290,7 +294,7 @@ const saveCurrentNoteId = (id: string | null) => {
 
 export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
   const initialCurrentNoteId = loadCurrentNoteId();
-  
+
   return {
     // Initial state
     notes: {},
@@ -333,114 +337,120 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
     searchNotes: (query: string) => {
       const { notes } = get();
       const noteArray = Object.values(notes);
-      
+
       if (!query.trim()) return noteArray;
-      
+
       const fuse = new Fuse(noteArray, {
-        keys: ['name', 'content.blocks.data.text'],
+        keys: ['title', 'content.blocks.data.text'],
         threshold: 0.4,
         includeScore: true,
       });
-      
+
       const results = fuse.search(query);
       return results.map(result => result.item);
     },
     
+
     getBacklinks: (noteId: string) => {
       const { notes } = get();
-      const targetNote = notes[noteId];
-      if (!targetNote) return [];
-      
-      console.log(`[Backlinks] Getting backlinks for: ${targetNote.name} (${noteId})`);
-      
-      const backlinks: Note[] = [];
-      
-      Object.values(notes).forEach(note => {
-        if (note.id === noteId) return;
-        
-        // Check if this note contains links to the target note
-        const linksByName = extractLinksFromContentLegacy(note.content);
-        console.log(`[Backlinks] Note "${note.name}" has links:`, linksByName);
-        
-        // Check for exact name match and also trimmed name match
-        const hasLink = linksByName.some(linkName => 
-          linkName === targetNote.name || 
-          linkName.trim() === targetNote.name.trim()
-        );
-        
-        console.log(`[Backlinks] Note "${note.name}" has link to "${targetNote.name}":`, hasLink);
-        
-        if (hasLink) {
-          backlinks.push(note);
-          console.log(`[Backlinks] ✅ Added backlink: ${note.name} -> ${targetNote.name}`);
+      const note = notes[noteId];
+      if (!note) return [];
+
+      const backendLinks = note.parent_wikilinks || [];
+
+      const unique = new Map();
+
+      backendLinks.forEach((link: any) => {
+        const parent = link.parent_note;   // ← USE THIS
+        if (parent && !unique.has(parent.id)) {
+          unique.set(parent.id, parent);
         }
       });
-      
-      console.log(`[Backlinks] Total backlinks found for "${targetNote.name}":`, backlinks.length);
-      return backlinks;
+
+      return Array.from(unique.values());
     },
+
+    frontLinks: (noteId: string) => {
+      const { notes } = get();
+      const note = notes[noteId];
+      if (!note) return [];
+
+      const frontLinks = note.child_wikilinks || [];
+
+      const unique = new Map();
+
+      frontLinks.forEach((link: any) => {
+        const child = link.child_note;      // ← USE THIS
+        if (child && !unique.has(child.id)) {
+          unique.set(child.id, child);
+        }
+      });
+
+      return Array.from(unique.values());
+    },
+
 
     // Enhanced backlinks that also check DOM-based wiki links
     getBacklinksWithDOM: (noteId: string) => {
       const { notes, getBacklinks } = get();
       const targetNote = notes[noteId];
       if (!targetNote) return [];
-      
+
       // Start with content-based backlinks
       const contentBacklinks = getBacklinks(noteId);
       const backlinkIds = new Set(contentBacklinks.map(note => note.id));
-      
+
       // For each note, check if it contains links to our target note
       Object.values(notes).forEach(note => {
         if (note.id !== noteId && !backlinkIds.has(note.id)) {
           // Check if this note's content contains links to our target
-          const hasContentLink = extractLinksFromContentLegacy(note.content).includes(targetNote.name);
-          
+          const hasContentLink = extractLinksFromContentLegacy(note.content).includes(targetNote.title);
+
           if (hasContentLink) {
             contentBacklinks.push(note);
             backlinkIds.add(note.id);
           }
         }
       });
-      
+
       return contentBacklinks;
     },
-    
+
     getAllTags: () => {
       const { notes } = get();
       const allTags = new Set<string>();
-      
+
       Object.values(notes).forEach(note => {
         note.tags.forEach(tag => allTags.add(tag));
       });
-      
+
       return Array.from(allTags).sort();
     },
 
     getCurrentNoteId: () => {
       return get().currentNoteId;
     },
-    
+
     getLinkedNotes: (noteId: string) => {
       const { notes } = get();
       const note = notes[noteId];
       if (!note) return [];
-      
+
       const linkedNoteNames = extractLinksFromContentLegacy(note.content);
       const linkedNotes: Note[] = [];
-      
+
       Object.values(notes).forEach(n => {
-        if (linkedNoteNames.includes(n.name)) {
+        if (linkedNoteNames.includes(n.title)) {
           linkedNotes.push(n);
         }
       });
-      
+
       return linkedNotes;
     },
-    
+
     extractLinks: extractLinksFromContentLegacy,
     extractTags: extractTagsFromContent,
-    
+
     getPinnedNotes: () => {
       const { notes } = get();
       return Object.values(notes)

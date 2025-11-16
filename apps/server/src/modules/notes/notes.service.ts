@@ -122,7 +122,7 @@ export function buildAllTags(notes: ExtractedNote[]): AllTagEntry[] {
 	}));
 }
 
-export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string, isWikilink: boolean = false): Promise<{ notes: Note[], total: number }> => {
+export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string, isWikilink: boolean = false, isGraph: boolean = false): Promise<{ notes: Note[], total: number }> => {
 	try {
 		const whereClause: any = { user_id: userId };
 		if (search) {
@@ -131,13 +131,34 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 				? search                     // exact match
 				: { [Op.iLike]: `%${search}%` };
 		}
+		const includeOptions = isGraph ? [
+			{
+				model: WikiLink,
+				as: 'parent_wikilinks',
+				include: [{
+					model: Note,
+					as: 'parent_note',
+					attributes: ['id', 'title', 'note_uid', 'created_at', 'updated_at']
+				}]
+			},
+			{
+				model: WikiLink,
+				as: 'child_wikilinks',
+				include: [{
+					model: Note,
+					as: 'child_note',
+					attributes: ['id', 'title', 'note_uid', 'created_at', 'updated_at']
+				}]
+			}
+		] : [];
 		console.log('Searching notes with clause:', whereClause);
 		const { count, rows } = await Note.findAndCountAll({
 			where: whereClause,
 			order: [['updated_at', 'DESC']],
 			limit: limit || 50,
 			offset: offset || 0,
-			attributes: isWikilink ? { exclude: ['content'] } : undefined
+			attributes: isWikilink ? { exclude: ['content'] } : undefined,
+			include: includeOptions
 		});
 
 		return { notes: rows, total: count };
@@ -158,7 +179,7 @@ export const getNoteByIdService = async (uid: string, userId: number): Promise<N
 					include: [{
 						model: Note,
 						as: 'parent_note',
-						attributes: ['id', 'title', 'note_uid']
+						attributes: ['id', 'title', 'note_uid', 'created_at', 'updated_at']
 					}]
 				},
 				{
@@ -167,7 +188,7 @@ export const getNoteByIdService = async (uid: string, userId: number): Promise<N
 					include: [{
 						model: Note,
 						as: 'child_note',
-						attributes: ['id', 'title', 'note_uid']
+						attributes: ['id', 'title', 'note_uid', 'created_at', 'updated_at']
 					}]
 				}
 			],

@@ -17,7 +17,7 @@ export function TagsPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
-  const pageSize = 3;
+  const pageSize = 15;
 
 
 console.log("TagsPanel rendered",);

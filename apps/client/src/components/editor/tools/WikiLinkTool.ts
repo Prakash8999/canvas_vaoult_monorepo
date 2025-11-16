@@ -6,10 +6,10 @@
 import { API, InlineTool, InlineToolConstructorOptions, OutputData } from '@editorjs/editorjs';
 
 interface WikiLinkConfig {
-  onGetNotes?: () => Array<{ id: string; name: string; note_uid?: string }>;
-  onCreateNote?: (name: string) => void;
+  onGetNotes?: () => Array<{ id: string; title: string; note_uid?: string }>;
+  onCreateNote?: (title: string) => void;
   // noteId may be API numeric id or the server-generated note_uid
-  onNavigateToNote?: (name: string, noteId?: string | null, noteUid?: string | null, clickedElement?: HTMLElement) => void;
+  onNavigateToNote?: (title: string, noteId?: string | null, noteUid?: string | null, clickedElement?: HTMLElement) => void;
   onSaveCurrentNote?: () => Promise<void>; // New callback to save current note
   onWikiLinkCreated?: (data: OutputData) => Promise<void>;
   onSearchNotes?: (query: string) => Promise<any[]>; // New callback to search notes
@@ -31,7 +31,7 @@ export class WikiLinkTool implements InlineTool {
   static get sanitize() {
     return {
       'wiki-link': {
-        'data-note-name': true,
+        'data-note-title': true,
         'data-note-uid': true,
         class: true
       }
@@ -164,7 +164,7 @@ export class WikiLinkTool implements InlineTool {
     
     const wikiLink = element?.closest('wiki-link');
     if (wikiLink) {
-      const text = wikiLink.getAttribute('data-note-name') || wikiLink.textContent || '';
+      const text = wikiLink.getAttribute('data-note-title') || wikiLink.textContent || '';
       const cleanText = text.replace(/^\[\[|\]\]$/g, '');
       const textNode = document.createTextNode(cleanText);
       wikiLink.parentNode?.replaceChild(textNode, wikiLink);
@@ -180,7 +180,7 @@ export class WikiLinkTool implements InlineTool {
   private createWikiLink(text: string): HTMLElement {
     const link = document.createElement('wiki-link');
     link.className = 'wiki-link inline-block px-1 py-0.5 mx-0.5 bg-blue-100 text-blue-700 rounded cursor-pointer hover:bg-blue-200 transition-colors';
-    link.setAttribute('data-note-name', text);
+    link.setAttribute('data-note-title', text);
     link.setAttribute('data-note-id', ''); // Will be set when note is created/found
     link.setAttribute('data-note-uid', ''); // Will be set when note is created/found
     link.textContent = `[[${text}]]`;
@@ -189,7 +189,7 @@ export class WikiLinkTool implements InlineTool {
     // Try to find existing note and set ID and UID immediately
     if (this.config.onGetNotes) {
       const notes = this.config.onGetNotes();
-      const existingNote = notes.find(note => note.name === text);
+      const existingNote = notes.find(note => note.title === text);
       if (existingNote) {
         link.setAttribute('data-note-id', existingNote.id);
         if (existingNote.note_uid) {
@@ -237,7 +237,7 @@ export class WikiLinkTool implements InlineTool {
         
         const noteId = wikiLink.getAttribute('data-note-id') || '';
         const noteUid = wikiLink.getAttribute('data-note-uid') || '';
-        const noteName = wikiLink.getAttribute('data-note-name') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
+        const noteName = wikiLink.getAttribute('data-note-title') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
 
         console.log('[WikiLinkTool] Wiki link clicked:', { 
           noteName, 
@@ -318,17 +318,17 @@ export class WikiLinkTool implements InlineTool {
         const match = content.match(/\[\[([^\]]+)\]\]/);
         if (match) {
           const newNoteName = match[1];
-          wikiLink.setAttribute('data-note-name', newNoteName);
+          wikiLink.setAttribute('data-note-title', newNoteName);
           
-          // If the note name changed, clear the existing note_uid and note_id
+          // If the note title changed, clear the existing note_uid and note_id
           // since this might now refer to a different note
           wikiLink.setAttribute('data-note-uid', '');
           wikiLink.setAttribute('data-note-id', '');
           
-          // Try to find existing note with the new name and update IDs
+          // Try to find existing note with the new title and update IDs
           if (activeConfig.onGetNotes) {
             const notes = activeConfig.onGetNotes();
-            const existingNote = notes.find(note => note.name === newNoteName);
+            const existingNote = notes.find(note => note.title === newNoteName);
             if (existingNote) {
               wikiLink.setAttribute('data-note-id', existingNote.id);
               if (existingNote.note_uid) {
@@ -388,11 +388,11 @@ export class WikiLinkTool implements InlineTool {
     notes.forEach(note => {
       const item = document.createElement('div');
       item.className = 'px-3 py-2 cursor-pointer hover:bg-gray-100 text-sm';
-      item.textContent = note.name;
+      item.textContent = note.title;
       
       item.addEventListener('click', () => {
-        linkElement.textContent = `[[${note.name}]]`;
-        linkElement.setAttribute('data-note-name', note.name);
+        linkElement.textContent = `[[${note.title}]]`;
+        linkElement.setAttribute('data-note-title', note.title);
         dropdown.remove();
       });
       

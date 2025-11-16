@@ -1,4 +1,4 @@
-import  { Request, Response } from "express";
+import { Request, Response } from "express";
 import { errorHandler, successHandler } from "../../common/middlewares/responseHandler";
 import { parseError } from "../../common/utils/error.parser";
 import * as noteService from "./notes.service";
@@ -29,9 +29,10 @@ export const getAllNotes = async (req: Request, res: Response) => {
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
 		const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
 		const search = req.query.search ? (req.query.search as string) : undefined;
-		const isWikilink = req.query.isWikiLink === 'true' || req.query.isWikiLink  ? true : false;
+		const isWikilink = req.query.isWikiLink === 'true' || req.query.isWikiLink ? true : false;
+		const isGraph = req.query.isGraph === 'true' || req.query.isGraph ? true : false;
 
-		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink);
+		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink, isGraph);
 		// console.log('Notes retrieved:', notes);
 
 		// 1. Extract tags for each note
@@ -46,12 +47,14 @@ export const getAllNotes = async (req: Request, res: Response) => {
 				note_uid: note.dataValues.note_uid,
 				version: note.dataValues.version,
 				pinned: note.dataValues.pinned,
+				child_wikilinks: note.child_wikilinks || [],
+				parent_wikilinks: note.parent_wikilinks || [],
 				created_at: note.dataValues.created_at,
 				updated_at: note.dataValues.updated_at,
 			};
 		});
 
-	
+
 
 		const responseData = {
 			notes: mappedNotes,
@@ -72,43 +75,43 @@ export const getAllNotes = async (req: Request, res: Response) => {
 	}
 };
 export const getAllTags = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user.userId;
+	try {
+		const userId = req.user.userId;
 
-    const page = req.query.page ? parseInt(req.query.page as string) : 1;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const offset = (page - 1) * limit;
+		const page = req.query.page ? parseInt(req.query.page as string) : 1;
+		const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+		const offset = (page - 1) * limit;
 
-    // STEP 1: Fetch ALL notes for the user (no pagination)
-    const { notes } = await noteService.getAllNotesService(userId);
+		// STEP 1: Fetch ALL notes for the user (no pagination)
+		const { notes } = await noteService.getAllNotesService(userId);
 
-    // STEP 2: Extract tags per note
-    const mappedNotes = notes.map(note => ({
-      id: note.dataValues.id,
-      title: note.dataValues.title,
-      note_uid: note.dataValues.note_uid,
-      tags: noteService.extractTagsFromContent(note.dataValues.content),
-      created_at: note.dataValues.created_at as Date,
-      updated_at: note.dataValues.updated_at as Date
-    }));
+		// STEP 2: Extract tags per note
+		const mappedNotes = notes.map(note => ({
+			id: note.dataValues.id,
+			title: note.dataValues.title,
+			note_uid: note.dataValues.note_uid,
+			tags: noteService.extractTagsFromContent(note.dataValues.content),
+			created_at: note.dataValues.created_at as Date,
+			updated_at: note.dataValues.updated_at as Date
+		}));
 
-    // STEP 3: Build global tag index
-    const allTags = buildAllTags(mappedNotes);
+		// STEP 3: Build global tag index
+		const allTags = buildAllTags(mappedNotes);
 
-    // STEP 4: Apply pagination to tags
-    const paginatedTags = allTags.slice(offset, offset + limit);
+		// STEP 4: Apply pagination to tags
+		const paginatedTags = allTags.slice(offset, offset + limit);
 
-    return successHandler(res, "Tags fetched successfully", {
-      tags: paginatedTags,
-      total: allTags.length,
-      page,
-      limit
-    }, 200);
+		return successHandler(res, "Tags fetched successfully", {
+			tags: paginatedTags,
+			total: allTags.length,
+			page,
+			limit
+		}, 200);
 
-  } catch (error) {
-    const parsed = parseError(error);
-    return errorHandler(res, "Failed to fetch tags", parsed.message, parsed.statusCode);
-  }
+	} catch (error) {
+		const parsed = parseError(error);
+		return errorHandler(res, "Failed to fetch tags", parsed.message, parsed.statusCode);
+	}
 };
 
 

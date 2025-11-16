@@ -78,8 +78,8 @@ let autoSaveState: AutoSaveState = {};
 // Notes API functions
 export const notesApi = {
   // Get all notes with pagination
-  getAllNotes: async (limit = 100, offset = 0): Promise<NotesListResponse> => {
-    const response = await api.get(`/note/notes?limit=${limit}&offset=${offset}`);
+  getAllNotes: async (limit = 100, offset = 0, isGraph = false): Promise<NotesListResponse> => {
+    const response = await api.get(`/note/notes?limit=${limit}&offset=${offset}&isGraph=${isGraph}`);
     // Handle both response formats: array directly or wrapped in object
     const notesData = response.data.data;
     if (Array.isArray(notesData)) {
@@ -186,25 +186,30 @@ export const convertApiNoteToLocal = (apiNote: any) => {
     console.error('Invalid apiNote received:', apiNote);
     throw new Error('Invalid API note data');
   }
-
-  return {
+  // console.log("API note (before conversion):", apiNote);
+  const localNote = {
     id: String(apiNote.id || ''),
-    name: apiNote.title || '',
+    title: apiNote.title || '',
     content: apiNote.content || { blocks: [] },
     tags: Array.isArray(apiNote.tags) ? apiNote.tags : [],
     createdAt: apiNote.created_at ? new Date(apiNote.created_at).getTime() : Date.now(),
     modifiedAt: apiNote.updated_at ? new Date(apiNote.updated_at).getTime() : Date.now(),
     isPinned: Boolean(apiNote.pinned),
+    parent_wikilinks: apiNote.parent_wikilinks || [],
+    child_wikilinks: apiNote.child_wikilinks || [],
     version: apiNote.version ,
     note_uid: apiNote.note_uid,
     wordCount: calculateWordCount(apiNote.content || { blocks: [] }),
   };
+  
+  // console.log("Local note (after conversion):", localNote);
+  return localNote;
 };
 
 // Helper function to convert local note to API format
 export const convertLocalNoteToApi = (localNote: any): CreateNoteRequest | UpdateNoteRequest => {
   const result: any = {
-    title: localNote.name,
+    title: localNote.title,
     content: localNote.content,
     tags: localNote.tags || [],
     pinned: localNote.isPinned || false,

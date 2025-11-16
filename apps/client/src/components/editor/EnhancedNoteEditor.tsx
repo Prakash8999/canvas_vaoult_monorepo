@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { EnhancedEditorJS, type EnhancedEditorJSRef } from './EnhancedEditorJS';
-import { BacklinksPanel } from './panels/BacklinksPanel';
+import { LinkRelationsPanel } from './panels/BacklinksPanel';
 import { TagsPanel } from './panels/TagsPanel';
 import { GraphPanel } from './panels/GraphPanel';
 import { TemplateModal } from './TemplateModal';
@@ -337,14 +337,14 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     }
 
     console.log('=== BACKLINK DEBUG ===');
-    console.log('Target Note:', targetNote.name, `(${targetId})`);
-    console.log('All Notes:', Object.values(notes).map(n => ({ name: n.name, id: n.id })));
+    console.log('Target Note:', targetNote.title, `(${targetId})`);
+    console.log('All Notes:', Object.values(notes).map(n => ({ title: n.title, id: n.id })));
 
     // Special check for welcome note
-    const welcomeNote = Object.values(notes).find(n => n.name.includes('Welcome') || n.name.includes('Knowledge Base'));
+    const welcomeNote = Object.values(notes).find(n => n.title.includes('Welcome') || n.title.includes('Knowledge Base'));
     if (welcomeNote) {
       console.log('\n🔍 SPECIAL WELCOME NOTE CHECK:');
-      console.log('Welcome note:', welcomeNote.name, `(${welcomeNote.id})`);
+      console.log('Welcome note:', welcomeNote.title, `(${welcomeNote.id})`);
       console.log('Welcome note content:', JSON.stringify(welcomeNote.content, null, 2));
 
       const welcomeLinks = useEnhancedNoteStore.getState().extractLinks(welcomeNote.content);
@@ -355,10 +355,10 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
           console.log(`Welcome Block ${index}:`, block.data.text);
 
           // Check for both formats
-          const hasPlainLink = block.data.text.includes(`[[${targetNote.name}]]`);
-          const hasHtmlLink = block.data.text.includes(`data-note-name="${targetNote.name}"`);
+          const hasPlainLink = block.data.text.includes(`[[${targetNote.title}]]`);
+          const hasHtmlLink = block.data.text.includes(`data-note-title="${targetNote.title}"`);
 
-          console.log(`  - Has plain [[${targetNote.name}]]:`, hasPlainLink);
+          console.log(`  - Has plain [[${targetNote.title}]]:`, hasPlainLink);
           console.log(`  - Has HTML wiki-link:`, hasHtmlLink);
         }
       });
@@ -368,19 +368,19 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     Object.values(notes).forEach(note => {
       if (note.id === targetId) return;
 
-      console.log(`\n--- Checking note: ${note.name} (${note.id}) ---`);
+      console.log(`\n--- Checking note: ${note.title} (${note.id}) ---`);
 
       const links = useEnhancedNoteStore.getState().extractLinks(note.content);
       console.log('Extracted links:', links);
 
-      const hasLinkToTarget = links.includes(targetNote.name);
-      console.log(`Has link to "${targetNote.name}":`, hasLinkToTarget);
+      const hasLinkToTarget = links.includes(targetNote.title);
+      console.log(`Has link to "${targetNote.title}":`, hasLinkToTarget);
 
       // Also check raw text for debugging
       note.content.blocks.forEach((block, index) => {
         if (block.data?.text) {
-          const hasRawLink = block.data.text.includes(`[[${targetNote.name}]]`);
-          const hasHtmlLink = block.data.text.includes(`data-note-name="${targetNote.name}"`);
+          const hasRawLink = block.data.text.includes(`[[${targetNote.title}]]`);
+          const hasHtmlLink = block.data.text.includes(`data-note-title="${targetNote.title}"`);
           if (hasRawLink || hasHtmlLink) {
             console.log(`Block ${index} text:`, block.data.text);
             console.log(`Block ${index} has raw link:`, hasRawLink);
@@ -391,7 +391,6 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     });
 
     const backlinks = useEnhancedNoteStore.getState().getBacklinksWithDOM(targetId);
-    console.log('\nFinal backlinks:', backlinks.map(n => n.name));
   };
 
   (window as any).debugBacklinks = debugBacklinks;
@@ -447,7 +446,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
         if (Object.keys(notes).length > 0) return; // notes arrived meanwhile
         try {
           const apiNote = await createNote({
-            name: 'Welcome to Your Knowledge Base',
+            title: 'Welcome to Your Knowledge Base',
             content: getWelcomeContent()
           });
           localStorage.setItem(WELCOME_SEEDED_KEY, '1');
@@ -475,12 +474,12 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
         if (currentNotesCount === 0) {
           // First note - create with welcome content
           apiNote = await createNote({
-            name: newNoteName.trim(),
+            title: newNoteName.trim(),
             content: getWelcomeContent()
           });
         } else {
           // Regular note
-          apiNote = await createNote({ name: newNoteName.trim() });
+          apiNote = await createNote({ title: newNoteName.trim() });
         }
 
         const noteId = apiNote.id.toString();
@@ -516,8 +515,8 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
         await autoSave.updateTitle(newName.trim());
         toast.success('Note title updated');
       } catch (error) {
-        console.error('Failed to update note name:', error);
-        toast.error('Failed to update note name');
+        console.error('Failed to update note title:', error);
+        toast.error('Failed to update note title');
       }
     }
   };
@@ -552,9 +551,9 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     setShowWikiLinkPopup(false);
     
     try {
-      // Create a new note with the wiki link name
+      // Create a new note with the wiki link title
       const apiNote = await createNote({ 
-        name: currentWikiLinkName,
+        title: currentWikiLinkName,
         is_wiki_link: true,
         parent_note_id: currentNoteId || null 
       });
@@ -922,7 +921,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                   if (currentNotesCount === 0 && !localStorage.getItem(WELCOME_SEEDED_KEY)) {
                     // First note - create with welcome content (only once)
                     createNote({
-                      name: 'Welcome to Your Knowledge Base',
+                      title: 'Welcome to Your Knowledge Base',
                       content: getWelcomeContent()
                     }).then(apiNote => {
                       localStorage.setItem(WELCOME_SEEDED_KEY, '1');
@@ -932,7 +931,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                   } else {
                     // Regular note
                     const noteName = `Note ${new Date().toLocaleTimeString()}`;
-                    createNote({ name: noteName }).then(apiNote => {
+                    createNote({ title: noteName }).then(apiNote => {
                       const noteId = apiNote.id?.toString?.() || apiNote.id + '';
                       navigateToNote(noteId);
                     });
@@ -1168,20 +1167,20 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setNewNoteName(e.target.value)}
                       onBlur={() => {
-                        if (newNoteName.trim() && newNoteName !== currentNote?.name) {
+                        if (newNoteName.trim() && newNoteName !== currentNote?.title) {
                           handleNameChange(newNoteName);
                         }
                         setEditingName(false);
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          if (newNoteName.trim() && newNoteName !== currentNote?.name) {
+                          if (newNoteName.trim() && newNoteName !== currentNote?.title) {
                             handleNameChange(newNoteName);
                           }
                           setEditingName(false);
                         }
                         if (e.key === 'Escape') {
-                          setNewNoteName(currentNote?.name || '');
+                          setNewNoteName(currentNote?.title || '');
                           setEditingName(false);
                         }
                       }}
@@ -1192,10 +1191,10 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                         className="text-2xl font-bold text-gray-900 cursor-text flex-1"
                         onDoubleClick={() => {
                           setEditingName(true);
-                          setNewNoteName(currentNote?.name || '');
+                          setNewNoteName(currentNote?.title || '');
                         }}
                       >
-                        {currentNote.name}
+                        {currentNote.title}
                       </h1>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <div className="flex items-center gap-1">
@@ -1260,46 +1259,70 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
       </ResizablePanel>
 
       {/* Side Panels */}
-      {(showBacklinks || showTags || showGraphView) && (
-        <>
-          <ResizableHandle />
-          <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-            <div className="h-full border-l border-gray-200">
-              <div className="h-full flex flex-col">
-                {showGraphView && (
-                  <div className="flex-1 border-b border-gray-200">
-                    {notesLoading ? (
-                      <PanelSkeleton title="Graph View" />
-                    ) : (
-                      <GraphPanel />
-                    )}
-                  </div>
-                )}
+    {(showBacklinks || showTags || showGraphView) && (
+  <>
+    <ResizableHandle />
 
-                {showBacklinks && currentNoteId && (
-                  <div className="flex-1 border-b border-gray-200">
-                    {notesLoading ? (
-                      <PanelSkeleton title="Backlinks" />
-                    ) : (
-                      <BacklinksPanel note_uid={currentNote.note_uid} />
-                    )}
-                  </div>
-                )}
+    <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+      <ResizablePanelGroup direction="vertical" className="h-full">
 
-                {showTags && (
-                  <div className="flex-1">
-                    {notesLoading ? (
-                      <PanelSkeleton title="Tags" />
-                    ) : (
-                      <TagsPanel />
-                    )}
-                  </div>
+        {showGraphView && currentNote && (
+          <>
+            <ResizablePanel defaultSize={34} minSize={10}>
+              {/* FIXED WRAPPER */}
+              <div className="h-full overflow-hidden flex flex-col border-b border-gray-200">
+                <div className="flex-1 overflow-y-auto">
+                  {notesLoading ? (
+                    <PanelSkeleton title="Graph View" />
+                  ) : (
+                    <GraphPanel />
+                  )}
+                </div>
+              </div>
+            </ResizablePanel>
+            <ResizableHandle />
+          </>
+        )}
+
+        {showBacklinks && currentNote && (
+          <>
+            <ResizablePanel defaultSize={33} minSize={10}>
+              {/* SIMPLIFIED WRAPPER FOR PROPER SCROLLING */}
+              <div className="h-full w-full border-b border-gray-200">
+                {notesLoading ? (
+                  <PanelSkeleton title="Backlinks" />
+                ) : (
+                  <LinkRelationsPanel note_id={currentNote.id} />
                 )}
               </div>
-            </div>
-          </ResizablePanel>
-        </>
-      )}
+            </ResizablePanel>
+            <ResizableHandle />
+          </>
+        )}
+
+        {showTags &&(
+          <>
+            <ResizablePanel defaultSize={33} minSize={10}>
+              {/* FIXED WRAPPER */}
+              <div className="h-full overflow-hidden flex flex-col">
+                <div className="flex-1 overflow-y-auto">
+                  {notesLoading ? (
+                    <PanelSkeleton title="Tags" />
+                  ) : (
+                    <TagsPanel />
+                  )}
+                </div>
+              </div>
+            </ResizablePanel>
+          </>
+        )}
+
+      </ResizablePanelGroup>
+    </ResizablePanel>
+  </>
+)}
+
+
     </ResizablePanelGroup>
   );
 
@@ -1384,7 +1407,7 @@ function NoteListItem({ note, isActive, onClick }: NoteListItemProps) {
             )}
             <h4 className={`font-semibold text-base truncate transition-colors ${isActive ? 'text-blue-800' : 'text-gray-900 group-hover:text-blue-700'
               }`}>
-              {note.name}
+              {note.title}
             </h4>
           </div>
 

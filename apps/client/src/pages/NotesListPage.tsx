@@ -130,7 +130,7 @@ export default function NotesListPage() {
       // Map API response to match frontend expected format
       const mappedNotes = notesArray.map(note => ({
         id: note.id,
-        name: note.title,
+        title: note.title,
         content: note.content,
         tags: note.tags || [],
         note_uid: note.note_uid,
@@ -264,7 +264,7 @@ export default function NotesListPage() {
       if (!hasExistingNotes) {
         // Even if already seeded, ensure at least one note exists
         apiNote = await createNote({
-          name: "Welcome to Your Knowledge Base",
+          title: "Welcome to Your Knowledge Base",
           content: getWelcomeContent(),
         });
         console.log('Created first welcome note:', apiNote);
@@ -275,8 +275,8 @@ export default function NotesListPage() {
       }
       else {
         // Regular note
-        const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
-        apiNote = await createNote({ name: noteName });
+        const noteTitle = `Untitled Note ${new Date().toLocaleTimeString()}`;
+        apiNote = await createNote({ title: noteTitle });
         console.log('Created new note:', apiNote);
       }
 
@@ -519,7 +519,7 @@ export default function NotesListPage() {
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleOpenNote(note.note_uid); } }}
-                        aria-label={`Open note ${note.name}`}
+                        aria-label={`Open note ${note.title}`}
                       >
                         <CardContent className="p-6">
                           <div className="flex items-start justify-between mb-4">
@@ -529,7 +529,7 @@ export default function NotesListPage() {
                                   <Pin size={14} className="text-warning flex-shrink-0" />
                                 )}
                                 <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors text-lg">
-                                  {note.name}
+                                  {note.title}
                                 </h3>
                               </div>
                               {note.content && (
@@ -603,7 +603,7 @@ export default function NotesListPage() {
                                   )}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id, note.name); }}
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id, note.title); }}
                                   className="flex items-center gap-2 text-destructive hover:bg-destructive/10"
                                 >
                                   <Trash2 size={14} />
