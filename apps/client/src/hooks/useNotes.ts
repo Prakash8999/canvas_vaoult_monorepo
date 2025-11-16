@@ -134,7 +134,8 @@ export const useNoteMutations = () => {
       if (updates.content !== undefined) updateData.content = updates.content;
       if (updates.isPinned !== undefined) updateData.pinned = updates.isPinned;
       if (updates.tags !== undefined) updateData.tags = updates.tags;
-
+      if (updates.child_note_id !== undefined) updateData.child_note_id = updates.child_note_id;
+      if (updates.is_wiki_link !== undefined) updateData.is_wiki_link = updates.is_wiki_link;
       return await notesApi.updateNote(parseInt(id), updateData);
     },
     onSuccess: (updatedApiNote, { id }) => {

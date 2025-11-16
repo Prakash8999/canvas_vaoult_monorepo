@@ -36,7 +36,7 @@ interface AutoSaveStatus {
   lastSaved: Date | null;
   isDirty: boolean;
   saveManually: () => Promise<void>;
-  saveContentNow: (content: OutputData) => Promise<void>;
+  saveContentNow: (content: OutputData, updatePayload?: Record<string, any>) => Promise<void>;
   markDirty: () => void;
   updateContent: (content: OutputData) => void;
   updateTitle: (title: string) => Promise<void>;
@@ -116,14 +116,15 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
     };
   }, [noteId]);
 
-  const performSave = useCallback(async (content: OutputData) => {
+  const performSave = useCallback(async (content: OutputData, updatePayload?: Record<string, any>) => {
     if (!noteId || isSaving || isUnloadingRef.current) return;
 
     setIsSaving(true);
     try {
+      const updates = { content, ...updatePayload };
       await updateNote({
         id: noteId,
-        updates: { content }
+        updates: updates
       });
       
       notesApi.markNoteClean(noteId);
@@ -132,7 +133,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
       pendingContentRef.current = null;
       lastSaveTimeRef.current = Date.now();
       
-      console.log(`[AutoSave] Successfully saved note ${noteId}`);
+      console.log(`[AutoSave] Successfully saved note ${noteId} with payload`, updatePayload);
     } catch (error) {
       console.error('Auto-save failed:', error);
     } finally {
@@ -281,7 +282,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
   }, [noteId]);
 
 
-  const saveContentNow = useCallback(async (contentToSave: OutputData) => {
+  const saveContentNow = useCallback(async (contentToSave: OutputData, updatePayload?: Record<string, any>) => {
     if (!noteId) return;
 
     // Clear any pending debounced save
@@ -292,7 +293,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
     
     console.log(`[AutoSave] Instant save triggered for note: ${noteId}`);
     // Use the content passed to us, not pendingContentRef
-    await performSave(contentToSave);
+    await performSave(contentToSave, updatePayload);
     
     // Update last save time to prevent immediate re-marking as dirty
     lastSaveTimeRef.current = Date.now();

@@ -30,6 +30,12 @@ export const NoteSchema = z
 			description: 'Optional parent note ID for hierarchical organization for wiki links notes',
 		}),
 
+		child_note_id: z.number().int().nullable().optional().openapi({
+			example: null,
+			description: 'Optional child note ID for hierarchical organization for wiki links notes',
+		}),
+
+
 		title: z.string().min(1).openapi({
 			example: 'Weekly Summary',
 			description: 'Title of the note',
@@ -87,6 +93,7 @@ export const CreateNoteSchema = NoteSchema.omit({
 	updated_at: true,
 	user_id: true,
 	note_uid: true,
+	child_note_id: true,
 }).openapi({
 	title: 'CreateNoteInput',
 	description: 'Payload for creating a new note',

@@ -23,7 +23,7 @@ import axios from 'axios';
 import { useAuthStore } from '@/stores/authStore';
 
 export interface EnhancedEditorJSRef {
-  saveWithWikiLinkUpdate: () => Promise<void>;
+  saveWithWikiLinkUpdate: (updatePayload?: Record<string, any>) => Promise<void>;
   handleNavigateToNote: (noteName: string, noteId?: string | null, noteUid?: string | null) => Promise<void>;
 }
 
@@ -40,7 +40,7 @@ interface EnhancedEditorJSProps {
   mode?: 'full' | 'light'; // New prop to control feature set
   onNavigateToNote?: (noteId: string) => Promise<void>; // New prop for navigation
   onSaveCurrentNote?: () => Promise<void>; // New prop for auto-save callback
-  onWikiLinkCreated?: (data: OutputData) => Promise<void>;
+  onWikiLinkCreated?: (data: OutputData, updatePayload?: Record<string, any>) => Promise<void>;
   onSearchNotes?: (query: string) => Promise<any[]>; // New prop for searching notes
   onShowSearchResults?: (results: any[], wikiLinkName: string, wikiLinkElement: HTMLElement) => void; // Show search popup
 }
@@ -788,7 +788,7 @@ useEffect(() => {
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
-    saveWithWikiLinkUpdate: async () => {
+    saveWithWikiLinkUpdate: async (updatePayload?: Record<string, any>) => {
       if (editorRef.current && typeof editorRef.current.save === 'function') {
         try {
           // Set flag to prevent EditorJS onChange from triggering during our save
@@ -799,7 +799,7 @@ useEffect(() => {
           
           // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
           if (onWikiLinkCreated) {
-            await onWikiLinkCreated(savedData);
+            await onWikiLinkCreated(savedData, updatePayload);
             console.log('[EnhancedEditorJS] onWikiLinkCreated completed - content saved to database');
           } else {
             // Fallback: trigger onChange and force save

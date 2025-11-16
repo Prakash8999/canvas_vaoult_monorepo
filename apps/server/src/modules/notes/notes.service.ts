@@ -1,12 +1,13 @@
 import { NoteCreationAttributes, NoteUpdateAttributes } from "./notes.model";
 // import { SyncEventLog } from "./syncEventLog.model";
 // import { SyncEvent, Conflict, UpdatedResource } from "./sync.schema";
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 
 
 
 import { v4 as uuidv4 } from 'uuid';
 import { WikiLink, Note } from "../shared/model/model.relation";
+import sequelize from "../../config/database";
 
 // CRUD Operations
 
@@ -26,7 +27,7 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 				throw new Error('Parent note ID is required when creating a wiki link');
 			}
 
-			const transaction = await Note.sequelize!.transaction();
+			const transaction = await sequelize.transaction();
 			try {
 				const note = await Note.create(noteData, { transaction });
 				await WikiLink.create({
@@ -113,35 +114,70 @@ export const getNoteByIdService = async (uid: string, userId: number): Promise<N
 	}
 };
 
-export const updateNoteService = async (id: number, data: NoteUpdateAttributes, userId: number): Promise<Note | null> => {
+export const updateNoteService = async (
+	id: number,
+	data: NoteUpdateAttributes,
+	userId: number
+): Promise<Note | null> => {
+	const transaction: Transaction = await sequelize.transaction();
+
 	try {
-		// First check if note exists and belongs to user
+		// 1. Check note ownership
 		const existingNote = await Note.findOne({
-			where: { id, user_id: userId }
+			where: { id, user_id: userId },
+			transaction,
 		});
 
 		if (!existingNote) {
-			throw new Error('Note not found');
+			throw new Error("Note not found");
 		}
 
-		// Update with version increment
-		const currentVersion = existingNote.dataValues.version || 0;
-		console.log('Current version:', currentVersion);
+		// 2. Version increment
+		const currentVersion: number = existingNote.dataValues.version || 0;
+
 		const updateData = {
 			...data,
 			version: currentVersion + 1,
 			updated_at: new Date(),
 		};
 
+		// 3. Validate wiki link
+		if (data.is_wiki_link && !data.child_note_id) {
+			throw new Error("Child note ID is required when updating a wiki link");
+		}
+
+		// 4. Update note inside transaction
 		await Note.update(updateData, {
-			where: { id, user_id: userId }
+			where: { id, user_id: userId },
+			transaction,
 		});
 
-		// Return updated note
-		const updatedNote = await Note.findByPk(id);
-		return updatedNote;
+		// 5. Create WikiLink if applicable
+		if (data.is_wiki_link && data.child_note_id) {
+			await WikiLink.create(
+				{
+					user_id: userId,
+					parent_note_id: id,
+					child_note_id: data.child_note_id,
+					created_at: new Date(),
+					updated_at: new Date(),
+				},
+				{ transaction }
+			);
+		}
+
+		// 6. Commit transaction
+		await transaction.commit();
+
+		// 7. Fetch and return updated note
+		return await Note.findByPk(id);
+
 	} catch (error) {
-		console.error('Error updating note:', error);
+		console.error("Error updating note:", error);
+
+		// Rollback transaction on error
+		await transaction.rollback();
+
 		throw error;
 	}
 };

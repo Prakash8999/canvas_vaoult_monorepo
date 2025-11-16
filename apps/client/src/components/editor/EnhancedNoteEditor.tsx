@@ -612,7 +612,10 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
 
       // Force save through the editor ref - this gets current content and saves it
       if (editorRef.current) {
-        await editorRef.current.saveWithWikiLinkUpdate();
+        await editorRef.current.saveWithWikiLinkUpdate({
+          child_note_id: selectedNote.id,
+          is_wiki_link: true
+        });
         console.log('[WikiLinkSelectExisting] Successfully saved current note with updated wiki link');
       }
 
