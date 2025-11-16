@@ -1313,6 +1313,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
           onNavigateToNote={editorRef.current?.handleNavigateToNote || navigateToNote}
           onSelectExisting={handleWikiLinkSelectExisting}
           position={popupPosition}
+          clickedElement={currentWikiLinkElement}
         />
       </>
     );
@@ -1346,6 +1347,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
         onNavigateToNote={editorRef.current?.handleNavigateToNote || navigateToNote}
         onSelectExisting={handleWikiLinkSelectExisting}
         position={popupPosition}
+        clickedElement={currentWikiLinkElement}
       />
     </div>
   );

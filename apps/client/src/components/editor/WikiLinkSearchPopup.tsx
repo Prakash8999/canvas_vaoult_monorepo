@@ -20,9 +20,10 @@ interface WikiLinkSearchPopupProps {
   onClose: () => void;
   searchResults: SearchResult[];
   wikiLinkName: string;
-  onNavigateToNote: (noteName: string, noteId?: string | null, noteUid?: string | null) => Promise<void>;
+  onNavigateToNote: (noteName: string, noteId?: string | null, noteUid?: string | null, clickedElement?: HTMLElement) => Promise<void>;
   onSelectExisting: (result: SearchResult) => void;
   position: { x: number; y: number };
+  clickedElement?: HTMLElement | null;
 }
 
 export default function WikiLinkSearchPopup({
@@ -32,7 +33,8 @@ export default function WikiLinkSearchPopup({
   wikiLinkName,
   onNavigateToNote,
   onSelectExisting,
-  position
+  position,
+  clickedElement
 }: WikiLinkSearchPopupProps) {
   const [isCreating, setIsCreating] = useState(false);
   
@@ -53,8 +55,16 @@ export default function WikiLinkSearchPopup({
     try {
       // Close popup immediately to show loading on button
       onClose();
-      // Call the proper navigation handler from EnhancedEditorJS
-      await onNavigateToNote(wikiLinkName, null, null);
+      
+      console.log('[WikiLinkSearchPopup] Creating new note with clicked element:', {
+        wikiLinkName,
+        hasClickedElement: !!clickedElement,
+        elementText: clickedElement?.textContent,
+        elementHTML: clickedElement?.outerHTML.substring(0, 100) + '...'
+      });
+      
+      // Call the proper navigation handler from EnhancedEditorJS with the clicked element
+      await onNavigateToNote(wikiLinkName, null, null, clickedElement || undefined);
     } catch (error) {
       console.error('Failed to create new note:', error);
       // The error will be handled by the parent component via toast
