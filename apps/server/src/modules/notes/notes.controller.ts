@@ -1,7 +1,8 @@
-import { Request, Response } from "express";
+import  { Request, Response } from "express";
 import { errorHandler, successHandler } from "../../common/middlewares/responseHandler";
 import { parseError } from "../../common/utils/error.parser";
 import * as noteService from "./notes.service";
+import { buildAllTags } from "./notes.service";
 
 // CRUD Operations
 
@@ -33,23 +34,27 @@ export const getAllNotes = async (req: Request, res: Response) => {
 		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink);
 		// console.log('Notes retrieved:', notes);
 
+		// 1. Extract tags for each note
+		const mappedNotes = notes.map(note => {
+			const extractedTags = noteService.extractTagsFromContent(note.dataValues.content);
+
+			return {
+				id: note.dataValues.id,
+				title: note.dataValues.title,
+				content: note.dataValues.content,
+				tags: extractedTags,
+				note_uid: note.dataValues.note_uid,
+				version: note.dataValues.version,
+				pinned: note.dataValues.pinned,
+				created_at: note.dataValues.created_at,
+				updated_at: note.dataValues.updated_at,
+			};
+		});
+
+	
+
 		const responseData = {
-			notes: notes.map(note => {
-
-				// Return full data for detailed view
-				return {
-					id: note.dataValues.id,
-					title: note.dataValues.title,
-					content: note.dataValues.content,
-					tags: note.dataValues.tags,
-					note_uid: note.dataValues.note_uid,
-					version: note.dataValues.version,
-					pinned: note.dataValues.pinned,
-					created_at: note.dataValues.created_at,
-					updated_at: note.dataValues.updated_at,
-				};
-
-			}),
+			notes: mappedNotes,
 			pagination: {
 				total,
 				limit,
@@ -60,13 +65,52 @@ export const getAllNotes = async (req: Request, res: Response) => {
 				hasMore: offset + limit < total,
 			}
 		};
-
 		return successHandler(res, "Notes fetched successfully", responseData, 200);
 	} catch (error) {
 		const errorParser = parseError(error);
 		return errorHandler(res, "Failed to fetch notes", errorParser.message, errorParser.statusCode);
 	}
 };
+export const getAllTags = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.userId;
+
+    const page = req.query.page ? parseInt(req.query.page as string) : 1;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+    const offset = (page - 1) * limit;
+
+    // STEP 1: Fetch ALL notes for the user (no pagination)
+    const { notes } = await noteService.getAllNotesService(userId);
+
+    // STEP 2: Extract tags per note
+    const mappedNotes = notes.map(note => ({
+      id: note.dataValues.id,
+      title: note.dataValues.title,
+      note_uid: note.dataValues.note_uid,
+      tags: noteService.extractTagsFromContent(note.dataValues.content),
+      created_at: note.dataValues.created_at as Date,
+      updated_at: note.dataValues.updated_at as Date
+    }));
+
+    // STEP 3: Build global tag index
+    const allTags = buildAllTags(mappedNotes);
+
+    // STEP 4: Apply pagination to tags
+    const paginatedTags = allTags.slice(offset, offset + limit);
+
+    return successHandler(res, "Tags fetched successfully", {
+      tags: paginatedTags,
+      total: allTags.length,
+      page,
+      limit
+    }, 200);
+
+  } catch (error) {
+    const parsed = parseError(error);
+    return errorHandler(res, "Failed to fetch tags", parsed.message, parsed.statusCode);
+  }
+};
+
 
 
 
@@ -83,12 +127,13 @@ export const getNote = async (req: Request, res: Response) => {
 		if (!note) {
 			return errorHandler(res, "Note not found", {}, 404);
 		}
+		const extractedTags = noteService.extractTagsFromContent(note.dataValues.content);
 		return successHandler(res, "Note fetched successfully", {
 			id: note.dataValues.id,
 			title: note.dataValues.title,
 			userId: note.dataValues.user_id,
 			content: note.dataValues.content,
-			tags: note.dataValues.tags,
+			tags: extractedTags,
 			version: note.dataValues.version,
 			note_uid: note.dataValues.note_uid,
 			pinned: note.dataValues.pinned,

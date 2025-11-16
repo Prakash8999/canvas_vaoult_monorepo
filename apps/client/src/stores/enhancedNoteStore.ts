@@ -56,6 +56,7 @@ interface EnhancedNoteState {
   getBacklinks: (noteId: string) => Note[];
   getBacklinksWithDOM: (noteId: string) => Note[];
   getAllTags: () => string[];
+  getCurrentNoteId: () => string | null;
   getLinkedNotes: (noteId: string) => Note[];
   extractLinks: (content: OutputData) => string[];
   extractTags: (content: OutputData) => string[];
@@ -414,6 +415,10 @@ export const useEnhancedNoteStore = create<EnhancedNoteState>((set, get) => {
       });
       
       return Array.from(allTags).sort();
+    },
+
+    getCurrentNoteId: () => {
+      return get().currentNoteId;
     },
     
     getLinkedNotes: (noteId: string) => {

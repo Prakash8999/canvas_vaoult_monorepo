@@ -1,4 +1,4 @@
-import { NoteCreationAttributes, NoteUpdateAttributes } from "./notes.model";
+import { AllTagEntry, ExtractedNote, NoteCreationAttributes, NoteUpdateAttributes, TagNoteRef } from "./notes.model";
 // import { SyncEventLog } from "./syncEventLog.model";
 // import { SyncEvent, Conflict, UpdatedResource } from "./sync.schema";
 import { Op, Transaction } from 'sequelize';
@@ -53,6 +53,74 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 		throw error;
 	}
 };
+
+export const extractTagsFromContent = (content: any): string[] => {
+	if (!content?.blocks) return [];
+
+	// const tags = new Set<string>();
+	const tags: string[] = [];
+	const tagRegex = /#([a-zA-Z0-9_]+)/g;
+
+	for (const block of content.blocks) {
+		let text = "";
+
+		// paragraph, quote, header, etc.
+		if (block.data?.text) {
+			text = block.data.text;
+		}
+
+		// list items stored in block.data.items[].content
+		if (block.type === "list" && Array.isArray(block.data?.items)) {
+			block.data.items.forEach((item: any) => {
+				if (typeof item.content === "string") {
+					text += " " + item.content;
+				}
+			});
+		}
+
+		// extract tags inside text
+		let match;
+		while ((match = tagRegex.exec(text)) !== null) {
+			tags.push(match[1].toLowerCase());
+		}
+	}
+
+	return Array.from(tags);
+};
+
+
+
+/**
+ * Build global allTags list from notes array.
+ * Each note already contains tags: string[]
+ */
+export function buildAllTags(notes: ExtractedNote[]): AllTagEntry[] {
+	const tagMap: Record<string, TagNoteRef[]> = {};
+
+	for (const note of notes) {
+		const uniqueTags = new Set(note.tags);
+
+		for (const tag of uniqueTags) {
+			if (!tagMap[tag]) tagMap[tag] = [];
+
+			// Prevent adding same note twice
+			if (!tagMap[tag].some(n => n.note_id === note.id)) {
+				tagMap[tag].push({
+					note_name: note.title,
+					note_uid: note.note_uid,
+					note_id: note.id,
+					created_at: note.created_at,
+					updated_at: note.updated_at,
+				});
+			}
+		}
+	}
+
+	return Object.entries(tagMap).map(([tag, notes]) => ({
+		tag,
+		notes
+	}));
+}
 
 export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string, isWikilink: boolean = false): Promise<{ notes: Note[], total: number }> => {
 	try {

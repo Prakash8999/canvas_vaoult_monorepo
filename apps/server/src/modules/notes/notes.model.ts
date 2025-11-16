@@ -109,6 +109,27 @@ export const UpdateNoteSchema = NoteSchema.partial().omit({
 	title: 'UpdateNoteInput',
 	description: 'Payload for updating an existing note',
 });
+export interface TagNoteRef {
+    note_name: string;
+	created_at: Date;
+	updated_at: Date;
+    note_uid: string;
+    note_id: number;
+}
+
+export interface AllTagEntry {
+    tag: string;
+    notes: TagNoteRef[];
+}
+
+export interface ExtractedNote {
+    id: number;
+    title: string;
+	created_at: Date;
+	updated_at: Date;
+    note_uid: string;
+    tags: string[];
+}
 
 // --------------------
 // 🧩 Types
