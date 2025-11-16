@@ -147,59 +147,12 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     });
   }, []);
   
-  // Helper function to update all WikiLinks when editor content changes
+  // DISABLED: updateAllWikiLinkIds function - now completely passive to preserve existing UIDs
   const updateAllWikiLinkIds = useCallback(() => {
-    const wikiLinks = document.querySelectorAll('wiki-link[data-note-name]');
-    let updatedCount = 0;
-    let preservedCount = 0;
-    
-    console.log(`[WikiLink] updateAllWikiLinkIds: Found ${wikiLinks.length} WikiLinks, notes loaded: ${Object.keys(notes).length}`);
-    
-    wikiLinks.forEach((link, index) => {
-      const noteName = link.getAttribute('data-note-name');
-      const existingNoteId = link.getAttribute('data-note-id');
-      const existingNoteUid = link.getAttribute('data-note-uid');
-      
-      // CRITICAL: Only update links that are truly empty - preserve existing UIDs
-      // Don't touch links that already have valid UIDs, even if we don't recognize the note
-      if (!noteName) return;
-      
-      // Only update if both ID and UID are missing or empty
-      const hasValidId = existingNoteId && existingNoteId.trim() !== '';
-      const hasValidUid = existingNoteUid && existingNoteUid.trim() !== '';
-      
-      // If the link already has a UID, don't touch it - it's already properly linked
-      if (hasValidUid) {
-        preservedCount++;
-        console.log(`[WikiLink] Preserving existing UID for ${noteName}: ${existingNoteUid}`);
-        return;
-      }
-      
-      // Only try to update if we don't have a valid ID either
-      if (!hasValidId) {
-        const existingNote = Object.values(notes).find(note => note.name === noteName);
-        if (existingNote) {
-          link.setAttribute('data-note-id', existingNote.id);
-          
-          // Set the note_uid if available
-          const noteUid = (existingNote as any).note_uid;
-          if (noteUid) {
-            link.setAttribute('data-note-uid', noteUid);
-            console.log(`[WikiLink] Updated ${noteName} with ID: ${existingNote.id}, UID: ${noteUid}`);
-          } else {
-            console.log(`[WikiLink] Updated ${noteName} with ID: ${existingNote.id} (no UID available)`);
-          }
-          
-          updatedCount++;
-        } else {
-          console.log(`[WikiLink] No note found for ${noteName} - leaving empty`);
-        }
-      } else {
-        console.log(`[WikiLink] Skipping ${noteName} - already has ID: ${existingNoteId}`);
-      }
-    });
-    
-    console.log(`[WikiLink] Summary: ${updatedCount} updated, ${preservedCount} preserved, ${wikiLinks.length - updatedCount - preservedCount} skipped`);
+    console.log('[WikiLink] updateAllWikiLinkIds called but disabled to preserve existing WikiLink UIDs');
+    // This function has been disabled to prevent WikiLink UID clearing on refresh
+    // All existing WikiLinks will preserve their UIDs and IDs as they are
+    return;
   }, [notes]);
 
   // Helper function to disable WikiLink during creation
@@ -309,38 +262,18 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
         return;
       }
 
-      // If note_uid was present but not in local store, check if it exists on server
-      try {
-        const noteExists = await notesApi.checkNoteExists(noteUid);
-        if (noteExists) {
-          console.log(`[WikiLink] Note with uid ${noteUid} exists on server, navigating`);
-          // Navigate to existing note
-          if (onNavigateToNote) {
-            onNavigateToNote(noteUid);
-          } else {
-            // For embedded mode, we might need to fetch the note first
-            try {
-              const serverNote = await notesApi.getNote(noteUid);
-              const localNote = convertApiNoteToLocal(serverNote);
-              setCurrentNote(localNote.id);
-            } catch (fetchError) {
-              console.error('Failed to fetch existing note:', fetchError);
-            }
-          }
-          return;
-        } else {
-          console.log(`[WikiLink] Note with uid ${noteUid} does not exist on server`);
-          // CONSERVATIVE: Only clear if we're absolutely certain the note doesn't exist
-          // Don't clear during page refresh when the note might just not be loaded yet
-          console.warn(`[WikiLink] Not clearing UID ${noteUid} - note might exist but not loaded yet`);
-          // TODO: Consider implementing a more sophisticated check here
-        }
-      } catch (error) {
-        console.error('Error checking note existence:', error);
-        // CONSERVATIVE: Don't clear UIDs on API errors - the note might exist but the API is failing
-        // Only proceed with creation flow without clearing existing UIDs
-        console.warn(`[WikiLink] API error checking note ${noteUid} - preserving existing UID`);
+      // DISABLED: Don't make server calls to check note existence during navigation
+      // This was causing valid UIDs to be cleared on refresh/API timeouts
+      console.log(`[WikiLink] Note with uid ${noteUid} not in local store - proceeding with navigation without server check`);
+      
+      // Just proceed with navigation - if the note doesn't exist, the navigation will handle it
+      if (onNavigateToNote) {
+        onNavigateToNote(noteUid);
+      } else {
+        // For embedded mode, just try to navigate - let the navigation handle missing notes
+        setCurrentNote(noteUid);
       }
+      return;
     }
 
     // If numeric id provided and exists in store, navigate
@@ -793,11 +726,9 @@ useEffect(() => {
 
     editorRef.current = editor;
     
-    // Update WikiLink IDs after editor is ready
+    // DISABLED: WikiLink ID updates after editor ready - was causing UID clearing
     editor.isReady.then(() => {
-      setTimeout(() => {
-        updateAllWikiLinkIds(); // Update note IDs for existing WikiLinks
-      }, 500);
+      console.log('[WikiLink] Editor ready - WikiLink updates disabled to preserve existing UIDs');
     });
   }, [mode, getAvailableNotes, handleNavigateToNote, handleCodeExecution, updateAllWikiLinkIds, onSaveCurrentNote]);
 
@@ -839,40 +770,19 @@ useEffect(() => {
     }
   }, [data, initializeEditor]);
 
-  // Update WikiLink IDs when notes change (but not during WikiLink creation)
+  // DISABLED: updateAllWikiLinkIds was causing existing WikiLinks to lose their UIDs
+  // This useEffect has been disabled to prevent WikiLink UID clearing on refresh
   useEffect(() => {
-    // Skip if we're currently creating/saving WikiLinks to prevent interference
-    if (isSavingWikiLinkRef.current || creatingWikiLinksRef.current.size > 0) {
-      return;
-    }
-    
-    // Skip if notes are not properly loaded yet (prevent clearing UIDs during initial load)
-    if (!notes || Object.keys(notes).length === 0) {
-      console.log('[WikiLink] Skipping updateAllWikiLinkIds - notes not loaded yet');
-      return;
-    }
-    
-    const timer = setTimeout(() => {
-      updateAllWikiLinkIds();
-    }, 100);
-    
-    return () => clearTimeout(timer);
+    // Skip all WikiLink ID updates to preserve existing UIDs
+    console.log('[WikiLink] updateAllWikiLinkIds disabled to preserve existing UIDs');
+    return;
   }, [notes, updateAllWikiLinkIds]);
 
-  // Force update WikiLinks when currentNoteId changes (after navigation)
+  // DISABLED: Force update WikiLinks on navigation was causing UIDs to be cleared
   useEffect(() => {
     if (currentNoteId) {
-      // Skip if notes are not properly loaded yet
-      if (!notes || Object.keys(notes).length === 0) {
-        console.log('[WikiLink] Skipping updateAllWikiLinkIds on navigation - notes not loaded yet');
-        return;
-      }
-      
-      const timer = setTimeout(() => {
-        updateAllWikiLinkIds();
-      }, 200);
-      
-      return () => clearTimeout(timer);
+      console.log('[WikiLink] Navigation WikiLink updates disabled to preserve existing UIDs');
+      return;
     }
   }, [currentNoteId, updateAllWikiLinkIds]);
 
