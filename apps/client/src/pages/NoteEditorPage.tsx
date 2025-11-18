@@ -20,7 +20,7 @@ export default function NoteEditorPage() {
   useEffect(() => {
     if (!uid) {
       const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
-      createNote({ name: noteName, content: { blocks: [] } })
+      createNote({ title: noteName, content: { blocks: [] } })
         .then((newApiNote) => {
           const localNote = convertApiNoteToLocal(newApiNote);
             navigate(`/note/${localNote.note_uid}`, { replace: true });

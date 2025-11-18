@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Network } from 'lucide-react';
 import { notesApi } from '@/lib/api/notesApi';
 import { useEnhancedNoteStore } from '@/stores/enhancedNoteStore';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Assumes notesApi.getAllNotes(limit, offset) => Promise<{ notes: Note[], pagination: { hasMore, offset, pageNum } }>
@@ -32,17 +33,18 @@ interface GraphNode extends d3.SimulationNodeDatum {
 }
 
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
-  source: string;
-  target: string;
+  source: string | GraphNode;
+  target: string | GraphNode;
   value: number;
 }
 
-  const PAGE_LIMIT = 5  ; // safe for <100 scenario (will fetch two pages max)
+const PAGE_LIMIT = 5; // safe for <100 scenario (will fetch two pages max)
 
 export function GraphPanel() {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const { setCurrentNote, currentNoteId } = useEnhancedNoteStore();
+  const navigate = useNavigate();
 
   // ---------- Fetch notes (infinite) ----------
   const fetchNotes = useCallback(async (context: { pageParam?: unknown }) => {
@@ -71,7 +73,7 @@ export function GraphPanel() {
   const notesMap: Record<string, NoteShort> = useMemo(() => {
     const map: Record<string, NoteShort> = {};
     if (!notesQuery.data) return map;
-    notesQuery.data.pages.forEach((page:any) => {
+    notesQuery.data.pages.forEach((page: any) => {
       (page.notes || []).forEach((n: NoteShort) => {
         map[String(n.id)] = {
           ...n,
@@ -195,14 +197,29 @@ export function GraphPanel() {
     svg.call(zoom as any);
 
     // Build simulation
-    const simNodes: GraphNode[] = nodes.map(n => ({ ...n })); // ensure type
+const simNodes: GraphNode[] = nodes.map(n => ({ 
+  ...n,
+  fx: undefined,  // Clear any fixed x position
+  fy: undefined   // Clear any fixed y position
+}));
+ // ensure type
     const simLinks = links.map(l => ({ ...l }));
 
-    const simulation = d3.forceSimulation<GraphNode>(simNodes)
-      .force('link', d3.forceLink<GraphNode, GraphLink>(simLinks).id(d => d.id).distance(110).strength(0.8))
-      .force('charge', d3.forceManyBody().strength(-260))
-      .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide<GraphNode>().radius(d => Math.sqrt(d.size) * 8 + 6));
+    const chargeStrength = Math.max(-300, -30 * nodes.length);
+const simulation = d3.forceSimulation<GraphNode>(simNodes)
+  .force('link', d3.forceLink<GraphNode, GraphLink>(simLinks)
+    .id(d => d.id)
+    .distance(110)
+    .strength(0.8))
+  .force('charge', d3.forceManyBody().strength(chargeStrength))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+  .force('collision', d3.forceCollide<GraphNode>()
+    .radius(d => Math.sqrt(d.size) * 8 + 6)
+    .strength(0.9))  // Increase collision strength
+  .force("x", d3.forceX(width / 2).strength(0.15))  // Stronger centering
+  .force("y", d3.forceY(height / 2).strength(0.15))
+  .alphaDecay(0.02)  // Slower decay = more stable
+  .velocityDecay(0.4);  // Higher friction = less drift
 
     // links
     const link = g.append('g')
@@ -280,44 +297,116 @@ export function GraphPanel() {
       event.stopPropagation();
       // set current note in your store (string)
       setCurrentNote(String(d.id));
+      const note = notesMap[d.id];
+      if (note && note.note_uid) {
+        navigate(`/note/${note.note_uid}`);
+      } else {
+        console.warn(`Note UID not found for note id: ${d.id}`);
+      }
     });
 
-    simulation.on('tick', () => {
-      // Clamp node positions to keep them within the SVG bounds
-      simNodes.forEach(d => {
-        const radius = Math.sqrt(d.size) * 6 + 6;
-        d.x = Math.max(radius, Math.min(width - radius, d.x));
-        d.y = Math.max(radius, Math.min(height - radius, d.y));
-      });
+  let hasStabilized = false;
 
-      link
-        .attr('x1', d => {
-          const sourceNode = typeof d.source === 'object' && d.source !== null
-            ? (d.source as GraphNode)
-            : simNodes.find(n => n.id === d.source);
-          return sourceNode?.x ?? 0;
-        })
-        .attr('y1', d => {
-          const sourceNode = typeof d.source === 'object' && d.source !== null
-            ? (d.source as GraphNode)
-            : simNodes.find(n => n.id === d.source);
-          return sourceNode?.y ?? 0;
-        })
-        .attr('x2', d => {
-          const targetNode = typeof d.target === 'object' && d.target !== null
-            ? (d.target as GraphNode)
-            : simNodes.find(n => n.id === d.target);
-          return targetNode?.x ?? 0;
-        })
-        .attr('y2', d => {
-          const targetNode = typeof d.target === 'object' && d.target !== null
-            ? (d.target as GraphNode)
-            : simNodes.find(n => n.id === d.target);
-          return targetNode?.y ?? 0;
-        });
-
-      node.attr('transform', d => `translate(${d.x},${d.y})`);
+simulation.on('tick', () => {
+  // Constrain node positions
+  simNodes.forEach(d => {
+    const radius = Math.sqrt(d.size) * 6 + 6;
+    d.x = Math.max(radius + 10, Math.min(width - radius - 10, d.x || 0));
+    d.y = Math.max(radius + 10, Math.min(height - radius - 10, d.y || 0));
+  });
+  
+  // Auto-fit once when simulation stabilizes
+  if (simulation.alpha() < 0.05 && !hasStabilized) {
+    hasStabilized = true;
+    performAutoFit();
+  }
+  
+  // Update link positions
+  link
+    .attr('x1', d => (d.source as GraphNode).x!)
+    .attr('y1', d => (d.source as GraphNode).y!)
+    .attr('x2', d => (d.target as GraphNode).x!)
+    .attr('y2', d => (d.target as GraphNode).y!);
+  
+  // Update node positions
+  node.attr('transform', d => `translate(${d.x},${d.y})`);
+});
+function performAutoFit() {
+  if (simNodes.length === 0) return;
+  
+  const xValues = simNodes.map(n => n.x!);
+  const yValues = simNodes.map(n => n.y!);
+  
+  const minX = Math.min(...xValues);
+  const maxX = Math.max(...xValues);
+  const minY = Math.min(...yValues);
+  const maxY = Math.max(...yValues);
+  
+  const graphWidth = maxX - minX;
+  const graphHeight = maxY - minY;
+  
+  const padding = 80;
+  const scale = Math.min(
+    width / (graphWidth + padding),
+    height / (graphHeight + padding),
+    1
+  );
+  
+  const translateX = (width - graphWidth * scale) / 2 - minX * scale;
+  const translateY = (height - graphHeight * scale) / 2 - minY * scale;
+  
+  const transform = d3.zoomIdentity
+    .translate(translateX, translateY)
+    .scale(scale);
+  
+  svg.transition()
+    .duration(500)
+    .call(zoom.transform as any, transform)
+    .on('end', () => {
+      // Stop simulation AFTER the zoom animation completes
+      simulation.stop();
     });
+}
+
+
+
+  // --- AUTO FIT GRAPH TO VIEW (Obsidian-style) ---
+  simulation.on("end", () => {
+  if (simNodes.length === 0) return;
+  
+  const xValues = simNodes.map(n => n.x!);
+  const yValues = simNodes.map(n => n.y!);
+  
+  const minX = Math.min(...xValues);
+  const maxX = Math.max(...xValues);
+  const minY = Math.min(...yValues);
+  const maxY = Math.max(...yValues);
+  
+  const graphWidth = maxX - minX;
+  const graphHeight = maxY - minY;
+  
+  const padding = 80;
+  const scale = Math.min(
+    width / (graphWidth + padding),
+    height / (graphHeight + padding),
+    1
+  );
+  
+  const translateX = (width - graphWidth * scale) / 2 - minX * scale;
+  const translateY = (height - graphHeight * scale) / 2 - minY * scale;
+  
+  const transform = d3.zoomIdentity
+    .translate(translateX, translateY)
+    .scale(scale);
+  
+  svg.transition().duration(500).call(zoom.transform as any, transform);
+  
+  // CRITICAL: Stop simulation after fitting
+  simulation.stop();
+});
+
+
+
 
     // zoom to current note if set
     if (currentNoteId) {
@@ -329,11 +418,31 @@ export function GraphPanel() {
       }
     }
 
+    // Add resize observer to handle container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      if (!container) return;
+      const newWidth = container.clientWidth;
+      const newHeight = container.clientHeight;
+      
+      svg.attr('width', newWidth).attr('height', newHeight);
+      
+      // Update forces for new dimensions
+      simulation
+        .force('center', d3.forceCenter(newWidth / 2, newHeight / 2))
+        .force("x", d3.forceX(newWidth / 2).strength(0.1))
+        .force("y", d3.forceY(newHeight / 2).strength(0.1))
+        .alpha(0.3)
+        .restart();
+    });
+    
+    resizeObserver.observe(container);
+
     // cleanup function
     return () => {
       simulation.stop();
       tooltip.remove();
       svg.selectAll('*').remove();
+      resizeObserver.disconnect();
     };
   }, [nodes, links, notesMap, setCurrentNote, currentNoteId]);
 

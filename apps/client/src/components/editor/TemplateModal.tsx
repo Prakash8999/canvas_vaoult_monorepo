@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { templateService } from '@/services/templateService';
+import { useNavigate } from 'react-router-dom';
+import { useNoteMutations } from '@/hooks/useNotes';
+import { toast } from 'sonner';
 
 interface Template {
   id: string;
@@ -74,14 +77,30 @@ export function TemplateModal({ isOpen, onClose, onSelectTemplate }: TemplateMod
     setPlaceholderValues(defaultValues);
   };
   
-  const handleApplyTemplate = () => {
-    if (!selectedTemplate) return;
-    
-    const content = templateService.applyTemplate(selectedTemplate, placeholderValues);
-    onSelectTemplate(content, selectedTemplate.name);
-    onClose();
-    setSelectedTemplate(null);
-    setPlaceholderValues({});
+  const navigate = useNavigate();
+  const { createNote } = useNoteMutations();
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateFromTemplate = async () => {
+    if (!selectedTemplate || isCreating) return;
+    setIsCreating(true);
+    try {
+      const content = templateService.applyTemplate(selectedTemplate, placeholderValues);
+      const title = selectedTemplate.name || 'Untitled Note';
+      const apiNote = await createNote({ title, content });
+
+      // The API always returns `note_uid` — use it for routing
+      const uid = apiNote.note_uid;
+      onClose();
+      navigate(`/note/${uid}`, { state: { fromTemplate: true } });
+    } catch (error) {
+      console.error('Failed to create note from template:', error);
+      toast.error('Failed to create note from template');
+    } finally {
+      setIsCreating(false);
+      setSelectedTemplate(null);
+      setPlaceholderValues({});
+    }
   };
   
   const handleCancel = () => {
@@ -270,11 +289,11 @@ export function TemplateModal({ isOpen, onClose, onSelectTemplate }: TemplateMod
               </div>
               
               <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
-                <Button variant="outline" onClick={handleCancel}>
+                <Button variant="outline" onClick={handleCancel} disabled={isCreating}>
                   Cancel
                 </Button>
-                <Button onClick={handleApplyTemplate}>
-                  Apply Template
+                <Button onClick={handleCreateFromTemplate} disabled={isCreating}>
+                  {isCreating ? 'Creating...' : 'Create Note from Template'}
                 </Button>
               </div>
             </div>
