@@ -932,7 +932,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                     // Regular note
                     const noteName = `Note ${new Date().toLocaleTimeString()}`;
                     createNote({ title: noteName }).then(apiNote => {
-                      const noteId = apiNote.id?.toString?.() || apiNote.id + '';
+                      const noteId = apiNote.note_uid
                       navigateToNote(noteId);
                     });
                   }

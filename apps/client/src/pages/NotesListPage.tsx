@@ -275,7 +275,7 @@ export default function NotesListPage() {
       }
       else {
         // Regular note
-        const noteTitle = `Untitled Note ${new Date().toLocaleTimeString()}`;
+        const noteTitle = `Note ${new Date().toLocaleTimeString()}`;
         apiNote = await createNote({ title: noteTitle });
         console.log('Created new note:', apiNote);
       }
