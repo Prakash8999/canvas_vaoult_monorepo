@@ -221,7 +221,7 @@ export const useAutoSave = (options: UseAutoSaveOptions): AutoSaveStatus => {
     try {
       await updateNote({
         id: noteId,
-        updates: { name: title }
+        updates: { title: title }
       });
       console.log(`[AutoSave] Title updated instantly: ${noteId}`);
     } catch (error) {

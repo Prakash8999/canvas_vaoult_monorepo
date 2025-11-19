@@ -519,6 +519,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
   const handleNameChange = async (newName: string) => {
     if (currentNoteId && newName.trim()) {
       try {
+        console.log('[EnhancedNoteEditor] handleNameChange called with:', newName.trim(),  currentNoteId );
         await autoSave.updateTitle(newName.trim());
         toast.success('Note title updated');
       } catch (error) {
