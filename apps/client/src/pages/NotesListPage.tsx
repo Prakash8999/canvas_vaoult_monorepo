@@ -64,10 +64,10 @@ export default function NotesListPage() {
   // Update URL when pageIndex changes (but only when pageIndex changes programmatically)
   useEffect(() => {
     if (isUpdatingUrlRef.current) return; // Skip if we're already updating URL
-    
+
     const currentPageParam = searchParams.get('page');
     const expectedPageNum = (pageIndex + 1).toString();
-    
+
     // Only update URL if it's different from current pageIndex
     if (currentPageParam !== expectedPageNum) {
       isUpdatingUrlRef.current = true;
@@ -83,7 +83,7 @@ export default function NotesListPage() {
   // Handle external URL changes (browser back/forward, direct navigation)
   useEffect(() => {
     if (isUpdatingUrlRef.current) return; // Skip if we're updating URL ourselves
-    
+
     const urlPageNum = searchParams.get('page');
     if (urlPageNum) {
       const urlPageIndex = Math.max(0, parseInt(urlPageNum, 10) - 1);
@@ -164,7 +164,7 @@ export default function NotesListPage() {
     setSearchQuery,
     searchResults
   } = useEnhancedNoteStore();
-  
+
   // Debounce search query
   useEffect(() => {
     if (searchQuery.length >= 3) {
@@ -185,7 +185,7 @@ export default function NotesListPage() {
       setApiSearchResults([]);
     }
   }, [debouncedSearchQuery]);
-  
+
 
   const [showPinnedOnly, setShowPinnedOnly] = useState(false);
   const [creatingNote, setCreatingNote] = useState(false);
@@ -284,7 +284,7 @@ export default function NotesListPage() {
 
       // Navigate using numeric id (API expects numeric) with fallback to uuid if somehow id missing
       // if (apiNote?.id !== undefined) {
-        navigate(`/note/${apiNote.note_uid}`);
+      navigate(`/note/${apiNote.note_uid}`);
       // } else if (apiNote?.note_uid) {
       //   console.warn('Numeric id missing; falling back to note_uid navigation. This may break editor fetch.', apiNote);
       //   navigate(`/note/${apiNote.note_uid}`);
@@ -372,12 +372,12 @@ export default function NotesListPage() {
     return totalWords;
   };
 
-      useEffect(() => {
-      return () => {
-        setSearchQuery('');
-      };
-    }, []);
-  
+  useEffect(() => {
+    return () => {
+      setSearchQuery('');
+    };
+  }, []);
+
 
   return (
     <div className="h-screen bg-workspace-bg flex flex-col overflow-hidden w-full">
@@ -465,16 +465,17 @@ export default function NotesListPage() {
             {/* Notes Grid */}
             <div className="flex-1 overflow-hidden">
               {loading || isSearching ? (
-                <div className="h-full flex items-center justify-center">
-                  <Card className="bg-workspace-panel border-workspace-border p-8">
-                    <div className="text-center text-muted-foreground">
-                      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
-                      <div className="text-xl font-medium mb-2 text-foreground">
-                        {isSearching ? 'Searching notes...' : 'Loading notes...'}
-                      </div>
-                    </div>
-                  </Card>
-                </div>
+                // <div className="h-full flex items-center justify-center">
+                //   <Card className="bg-workspace-panel border-workspace-border p-8">
+                //     <div className="text-center text-muted-foreground">
+                //       <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+                //       <div className="text-xl font-medium mb-2 text-foreground">
+                //         {isSearching ? 'Searching notes...' : 'Loading notes...'}
+                //       </div>
+                //     </div>
+                //   </Card>
+                // </div>
+                <NotesListSkeleton />
               ) : queryError ? (
                 <div className="h-full flex items-center justify-center">
                   <Card className="bg-workspace-panel border-workspace-border p-8">
@@ -618,60 +619,63 @@ export default function NotesListPage() {
 
                     {/* Load More Button */}
                     {/* Pagination controls */}
-                    <div className="col-span-full flex flex-col items-center gap-4 py-8">
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={() => setPageIndexWithUrl((p) => Math.max(0, p - 1))}
-                          disabled={pageIndex === 0}
-                          variant="outline"
-                          className="border-workspace-border hover:bg-workspace-hover"
-                        >
-                          Prev
-                        </Button>
-
-                        {/* Page numbers - derive total pages when total is available */}
+                  {/* Pagination controls - Only show when NOT searching */}
+                    {!debouncedSearchQuery && (
+                      <div className="col-span-full flex flex-col items-center gap-4 py-8">
                         <div className="flex items-center gap-2">
-                          {(() => {
-                            const total = pagedData?.total;
-                            const totalPages = typeof total === 'number' && total > 0 ? Math.ceil(total / pageSize) : 0;
-                            if (totalPages > 0) {
-                              return Array.from({ length: totalPages }).map((_, idx) => (
-                                <Button
-                                  key={idx}
-                                  onClick={() => setPageIndexWithUrl(idx)}
-                                  variant={idx === pageIndex ? 'default' : 'outline'}
-                                  className={`h-8 w-8 p-0 ${idx === pageIndex ? 'bg-primary text-white' : ''}`}
-                                >
-                                  {idx + 1}
-                                </Button>
-                              ));
-                            }
+                          <Button
+                            onClick={() => setPageIndexWithUrl((p) => Math.max(0, p - 1))}
+                            disabled={pageIndex === 0}
+                            variant="outline"
+                            className="border-workspace-border hover:bg-workspace-hover"
+                          >
+                            Prev
+                          </Button>
 
-                            // Fallback: show current page number
-                            return (
-                              <div className="px-3 py-1 text-sm text-muted-foreground">Page {pageIndex + 1}</div>
-                            );
-                          })()}
+                          {/* Page numbers */}
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const total = pagedData?.total;
+                              const totalPages = typeof total === 'number' && total > 0 ? Math.ceil(total / pageSize) : 0;
+                              
+                              if (totalPages > 0) {
+                                return Array.from({ length: totalPages }).map((_, idx) => (
+                                  <Button
+                                    key={idx}
+                                    onClick={() => setPageIndexWithUrl(idx)}
+                                    variant={idx === pageIndex ? 'default' : 'outline'}
+                                    className={`h-8 w-8 p-0 ${idx === pageIndex ? 'bg-primary text-white' : ''}`}
+                                  >
+                                    {idx + 1}
+                                  </Button>
+                                ));
+                              }
+                              return (
+                                <div className="px-3 py-1 text-sm text-muted-foreground">Page {pageIndex + 1}</div>
+                              );
+                            })()}
+                          </div>
+
+                          <Button
+                            onClick={() => setPageIndexWithUrl((p) => p + 1)}
+                            disabled={(() => {
+                              const total = pagedData?.total;
+                              const totalPages = typeof total === 'number' && total > 0 ? Math.ceil(total / pageSize) : 0;
+                              return pageIndex >= totalPages - 1;
+                            })()}
+                            variant="outline"
+                            className="border-workspace-border hover:bg-workspace-hover"
+                          >
+                            Next
+                          </Button>
                         </div>
 
-                        <Button
-                          onClick={() => setPageIndexWithUrl((p) => p + 1)}
-                          disabled={(() => {
-                            const total = pagedData?.total;
-                            const totalPages = typeof total === 'number' && total > 0 ? Math.ceil(total / pageSize) : 0;
-                            return pageIndex >= totalPages - 1;
-                          })()}
-                          variant="outline"
-                          className="border-workspace-border hover:bg-workspace-hover"
-                        >
-                          Next
-                        </Button>
+                        <div className="text-sm text-muted-foreground">
+                           {/* Adjust text based on state */}
+                           Showing {displayedNotes.length} notes
+                        </div>
                       </div>
-
-                      <div className="text-sm text-muted-foreground">
-                        Showing {displayedNotes.length} notes on this page
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </ScrollArea>
               )}
@@ -680,6 +684,48 @@ export default function NotesListPage() {
         </main>
       </div>
       <AiDrawer />
+    </div>
+  );
+}
+
+
+
+function NotesListSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+      {Array.from({ length: 9 }).map((_, i) => (
+        <Card
+          key={i}
+          className="bg-workspace-panel border-workspace-border h-[220px] overflow-hidden"
+        >
+          <CardContent className="p-6 h-full flex flex-col">
+            {/* Title and Pin Icon Skeleton */}
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-3/4 h-7 bg-primary/10 rounded animate-pulse" />
+              <div className="w-4 h-4 bg-primary/10 rounded animate-pulse" />
+            </div>
+
+            {/* Content Lines Skeleton */}
+            <div className="space-y-3 mb-auto">
+              <div className="w-full h-4 bg-muted rounded animate-pulse" />
+              <div className="w-11/12 h-4 bg-muted rounded animate-pulse" />
+              <div className="w-4/6 h-4 bg-muted rounded animate-pulse" />
+            </div>
+
+            {/* Footer (Date & Word Count) Skeleton */}
+            <div className="flex items-center gap-4 mt-6">
+              <div className="w-24 h-4 bg-muted/50 rounded animate-pulse" />
+              <div className="w-16 h-4 bg-muted/50 rounded animate-pulse" />
+            </div>
+
+            {/* Tags Skeleton */}
+            <div className="flex gap-2 mt-3">
+              <div className="w-12 h-5 bg-muted/30 rounded-full animate-pulse" />
+              <div className="w-16 h-5 bg-muted/30 rounded-full animate-pulse" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
