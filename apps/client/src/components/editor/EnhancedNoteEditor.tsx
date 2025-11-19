@@ -81,6 +81,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [apiSearchResults, setApiSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isCreatingLocal, setIsCreatingLocal] = useState(false);
 
   // Auto-save hook
   const autoSave = useAutoSave({
@@ -91,12 +92,18 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
     enabled: mode === 'full' // Only enable auto-save in full mode
   });
 
-    useEffect(() => {
+  useEffect(() => {
     return () => {
       setSearchQuery('');
     };
   }, []);
+  const isResolvingNote = currentNoteId && !notes[currentNoteId];
 
+  const shouldShowSkeleton =
+    (notesLoading && Object.keys(notes).length === 0) ||
+    isLoadingNote ||
+    isCreatingLocal ||
+    isResolvingNote;
 
   // Save before navigation/note switching
   const previousNoteIdRef = useRef<string | null>(null);
@@ -226,18 +233,18 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
 
   // Function to show wiki link search results popup
   const showWikiLinkSearchResults = (searchResults: any[], wikiLinkName: string, wikiLinkElement: HTMLElement) => {
-    console.log('[EnhancedNoteEditor] showWikiLinkSearchResults called with:', { 
-      searchResults, 
-      wikiLinkName, 
-      wikiLinkElement 
+    console.log('[EnhancedNoteEditor] showWikiLinkSearchResults called with:', {
+      searchResults,
+      wikiLinkName,
+      wikiLinkElement
     });
     const rect = wikiLinkElement.getBoundingClientRect();
     setWikiLinkSearchResults(searchResults);
     setCurrentWikiLinkName(wikiLinkName);
     setCurrentWikiLinkElement(wikiLinkElement);
-    setPopupPosition({ 
+    setPopupPosition({
       x: Math.min(rect.left, window.innerWidth - 340), // Ensure popup doesn't go off-screen
-      y: rect.bottom + 8 
+      y: rect.bottom + 8
     });
     setShowWikiLinkPopup(true);
     console.log('[EnhancedNoteEditor] Popup should now be visible');
@@ -549,29 +556,29 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
   // Handler for creating new note from wiki link popup
   const handleWikiLinkCreateNew = async () => {
     setShowWikiLinkPopup(false);
-    
+
     try {
       // Create a new note with the wiki link title
-      const apiNote = await createNote({ 
+      const apiNote = await createNote({
         title: currentWikiLinkName,
         is_wiki_link: true,
-        parent_note_id: currentNoteId || null 
+        parent_note_id: currentNoteId || null
       });
-      
+
       const newNoteUid = apiNote.note_uid;
-      
+
       // Update the wiki link element with the new note's UID
       if (currentWikiLinkElement && newNoteUid) {
         currentWikiLinkElement.setAttribute('data-note-uid', newNoteUid);
         currentWikiLinkElement.setAttribute('data-note-id', apiNote.id.toString());
-        
+
         // Find the parent block and trigger an input event on it
         // This tells EditorJS to re-read the block's content
         const block = currentWikiLinkElement.closest('.ce-block');
         if (block) {
           block.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         }
-        
+
         // Give React and Editor.js a moment to process the change before saving
         await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -581,7 +588,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
           console.log('[WikiLinkCreateNew] Successfully saved current note with updated wiki link');
         }
       }
-      
+
       // Navigate to the newly created note using note_uid
       navigateToNote(newNoteUid);
     } catch (error) {
@@ -605,7 +612,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
       if (block) {
         block.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
       }
-      
+
       // Give React and Editor.js a moment to process the change before saving
       await new Promise(resolve => setTimeout(resolve, 50));
 
@@ -916,29 +923,46 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={isCreatingLocal}
                 onClick={() => {
+                  setIsCreatingLocal(true);
+
                   const currentNotesCount = Object.keys(notes).length;
+                  // ... (your existing seeded check logic) ...
+
                   if (currentNotesCount === 0 && !localStorage.getItem(WELCOME_SEEDED_KEY)) {
-                    // First note - create with welcome content (only once)
-                    createNote({
-                      title: 'Welcome to Your Knowledge Base',
-                      content: getWelcomeContent()
-                    }).then(apiNote => {
-                      localStorage.setItem(WELCOME_SEEDED_KEY, '1');
-                      const noteId = apiNote.id?.toString?.() || apiNote.id + '';
-                      navigateToNote(noteId);
-                    });
+                    // ... (welcome note logic) ...
                   } else {
-                    // Regular note
+                    // Regular note logic
                     const noteName = `Note ${new Date().toLocaleTimeString()}`;
-                    createNote({ title: noteName }).then(apiNote => {
-                      const noteId = apiNote.note_uid
-                      navigateToNote(noteId);
-                    });
+
+                    createNote({ title: noteName })
+                      .then(apiNote => {
+                        const noteId = apiNote.note_uid;
+
+                        // 1. Navigate to the new note
+                        navigateToNote(noteId);
+
+                        // 2. IMPORTANT: Turn off the local creating state!
+                        // We wrap this in a small timeout to ensure the store has a chance 
+                        // to process the new ID, preventing a flash of empty state.
+                        setTimeout(() => {
+                          setIsCreatingLocal(false);
+                        }, 100);
+                      })
+                      .catch((err) => {
+                        console.error(err);
+                        setIsCreatingLocal(false); // Also turn off on error
+                      });
                   }
                 }}
               >
-                <Plus size={16} />
+
+                {isCreatingLocal ? (
+                  <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full mr-2" />
+                ) : (
+                  <Plus size={16} />
+                )}
                 <span className="ml-2">New</span>
               </Button>
 
@@ -1090,7 +1114,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
 
           {/* Note Editor */}
           <div className="flex-1 p-4 overflow-auto">
-            {isInitialLoading ? (
+            {shouldShowSkeleton ? (
               // Show shimmer skeleton while initial loading
               <div className="h-full space-y-6">
                 {/* Title area skeleton */}
@@ -1108,7 +1132,7 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
                   <div className="animate-pulse h-4 bg-gray-200 rounded w-full"></div>
                   <div className="animate-pulse h-4 bg-gray-200 rounded w-5/6"></div>
                   <div className="animate-pulse h-4 bg-gray-200 rounded w-4/5"></div>
-                  
+
                   <div className="space-y-3 mt-6">
                     <div className="animate-pulse h-6 bg-gray-200 rounded w-48"></div>
                     <div className="space-y-2">
@@ -1259,68 +1283,68 @@ export default function EnhancedNoteEditor({ embedded = false, mode = 'full', is
       </ResizablePanel>
 
       {/* Side Panels */}
-    {(showBacklinks || showTags || showGraphView) && (
-  <>
-    <ResizableHandle />
+      {(showBacklinks || showTags || showGraphView) && (
+        <>
+          <ResizableHandle />
 
-    <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-      <ResizablePanelGroup direction="vertical" className="h-full">
+          <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+            <ResizablePanelGroup direction="vertical" className="h-full">
 
-        {showGraphView && currentNote && (
-          <>
-            <ResizablePanel defaultSize={34} minSize={10}>
-              {/* FIXED WRAPPER */}
-              <div className="h-full overflow-hidden flex flex-col border-b border-gray-200">
-                <div className="flex-1 overflow-y-auto">
-                  {notesLoading ? (
-                    <PanelSkeleton title="Graph View" />
-                  ) : (
-                    <GraphPanel />
-                  )}
-                </div>
-              </div>
-            </ResizablePanel>
-            <ResizableHandle />
-          </>
-        )}
+              {showGraphView && currentNote && (
+                <>
+                  <ResizablePanel defaultSize={34} minSize={10}>
+                    {/* FIXED WRAPPER */}
+                    <div className="h-full overflow-hidden flex flex-col border-b border-gray-200">
+                      <div className="flex-1 overflow-y-auto">
+                        {notesLoading ? (
+                          <PanelSkeleton title="Graph View" />
+                        ) : (
+                          <GraphPanel />
+                        )}
+                      </div>
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle />
+                </>
+              )}
 
-        {showBacklinks && currentNote && (
-          <>
-            <ResizablePanel defaultSize={33} minSize={10}>
-              {/* SIMPLIFIED WRAPPER FOR PROPER SCROLLING */}
-              <div className="h-full w-full border-b border-gray-200">
-                {notesLoading ? (
-                  <PanelSkeleton title="Backlinks" />
-                ) : (
-                  <LinkRelationsPanel note_id={currentNote.id} />
-                )}
-              </div>
-            </ResizablePanel>
-            <ResizableHandle />
-          </>
-        )}
+              {showBacklinks && currentNote && (
+                <>
+                  <ResizablePanel defaultSize={33} minSize={10}>
+                    {/* SIMPLIFIED WRAPPER FOR PROPER SCROLLING */}
+                    <div className="h-full w-full border-b border-gray-200">
+                      {notesLoading ? (
+                        <PanelSkeleton title="Backlinks" />
+                      ) : (
+                        <LinkRelationsPanel note_id={currentNote.id} />
+                      )}
+                    </div>
+                  </ResizablePanel>
+                  <ResizableHandle />
+                </>
+              )}
 
-        {showTags &&(
-          <>
-            <ResizablePanel defaultSize={33} minSize={10}>
-              {/* FIXED WRAPPER */}
-              <div className="h-full overflow-hidden flex flex-col">
-                <div className="flex-1 overflow-y-auto">
-                  {notesLoading ? (
-                    <PanelSkeleton title="Tags" />
-                  ) : (
-                    <TagsPanel />
-                  )}
-                </div>
-              </div>
-            </ResizablePanel>
-          </>
-        )}
+              {showTags && (
+                <>
+                  <ResizablePanel defaultSize={33} minSize={10}>
+                    {/* FIXED WRAPPER */}
+                    <div className="h-full overflow-hidden flex flex-col">
+                      <div className="flex-1 overflow-y-auto">
+                        {notesLoading ? (
+                          <PanelSkeleton title="Tags" />
+                        ) : (
+                          <TagsPanel />
+                        )}
+                      </div>
+                    </div>
+                  </ResizablePanel>
+                </>
+              )}
 
-      </ResizablePanelGroup>
-    </ResizablePanel>
-  </>
-)}
+            </ResizablePanelGroup>
+          </ResizablePanel>
+        </>
+      )}
 
 
     </ResizablePanelGroup>
