@@ -187,16 +187,16 @@ export class WikiLinkTool implements InlineTool {
     link.contentEditable = 'false';
     
     // Try to find existing note and set ID and UID immediately
-    if (this.config.onGetNotes) {
-      const notes = this.config.onGetNotes();
-      const existingNote = notes.find(note => note.title === text);
-      if (existingNote) {
-        link.setAttribute('data-note-id', existingNote.id);
-        if (existingNote.note_uid) {
-          link.setAttribute('data-note-uid', existingNote.note_uid);
-        }
-      }
-    }
+    // if (this.config.onGetNotes) {
+    //   const notes = this.config.onGetNotes();
+    //   const existingNote = notes.find(note => note.title === text);
+    //   if (existingNote) {
+    //     link.setAttribute('data-note-id', existingNote.id);
+    //     if (existingNote.note_uid) {
+    //       link.setAttribute('data-note-uid', existingNote.note_uid);
+    //     }
+    //   }
+    // }
     // Log when a new wiki link element is created for debugging
     try {
       const existingId = link.getAttribute('data-note-id') || '';
@@ -326,16 +326,16 @@ export class WikiLinkTool implements InlineTool {
           wikiLink.setAttribute('data-note-id', '');
           
           // Try to find existing note with the new title and update IDs
-          if (activeConfig.onGetNotes) {
-            const notes = activeConfig.onGetNotes();
-            const existingNote = notes.find(note => note.title === newNoteName);
-            if (existingNote) {
-              wikiLink.setAttribute('data-note-id', existingNote.id);
-              if (existingNote.note_uid) {
-                wikiLink.setAttribute('data-note-uid', existingNote.note_uid);
-              }
-            }
-          }
+          // if (activeConfig.onGetNotes) {
+          //   const notes = activeConfig.onGetNotes();
+          //   const existingNote = notes.find(note => note.title === newNoteName);
+          //   if (existingNote) {
+          //     wikiLink.setAttribute('data-note-id', existingNote.id);
+          //     if (existingNote.note_uid) {
+          //       wikiLink.setAttribute('data-note-uid', existingNote.note_uid);
+          //     }
+          //   }
+          // }
         }
       }
     });
