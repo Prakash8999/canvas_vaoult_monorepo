@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import { User, UserCreationAttributes } from './users.model';
 import redisClient from '../../config/redis';
 import { otpQueue } from '../../jobs/producer';
+import { createRefreshToken, generateAccessToken, setRefreshTokenCookie } from '../../common/utils/authTokenService';
+import { Request, Response } from 'express';
 
 
 export async function createUserService(body: UserCreationAttributes) {
@@ -98,7 +100,7 @@ export async function verifyOtpService(email: string, otp: string) {
   return { token };
 }
 
-export async function loginUserService(email: string, otpOrPassword: string) {
+export async function loginUserService(email: string, otpOrPassword: string, req: Request, res: Response) {
   const user = await User.findOne({ where: { email, block: false }, attributes: ['id', 'email', 'password', 'is_email_verified'] });
   if (!user) {
     const err: any = new Error('User not found');
@@ -117,14 +119,22 @@ export async function loginUserService(email: string, otpOrPassword: string) {
     err.statusCode = 401;
     throw err;
   }
-    if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined in environment variables');
+  if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined in environment variables');
 
-  const token = jwt.sign(
-    { userId: user.dataValues.id, email: user.dataValues.email },
-    process.env.JWT_SECRET,
-    { expiresIn: '1d', issuer: 'canvas-backend', audience: 'canvas-users' }
-  );
-  return { token };
+  // 1) access token
+  const accessToken = generateAccessToken({
+    id: user.dataValues.id!,
+    email: user.dataValues.email!,
+  });
+
+  // 2) refresh token + cookie
+  const refreshToken = await createRefreshToken(user.dataValues.id!, req);
+  setRefreshTokenCookie(res, refreshToken);
+
+
+
+  return { token: accessToken }
+
 }
 
 export async function getUserProfileService(userId: number) {

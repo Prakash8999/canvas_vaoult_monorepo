@@ -7,7 +7,7 @@ import * as userService from './user.service';
 
 export const addUser = async (req: Request, res: Response) => {
 	try {
-		
+
 		const body = CreateUserSchema.parse(req.body);
 		const { user, otp } = await userService.createUserService(body);
 		successHandler(res, 'User created successfully', { id: user.dataValues.id, otp }, 201);
@@ -37,7 +37,7 @@ export const loginUser = async (req: Request, res: Response) => {
 	try {
 		console.log(req.body);
 		const body = UserLoginSchema.parse(req.body);
-		const { token } = await userService.loginUserService(body.email, body.password);
+		const { token } = await userService.loginUserService(body.email, body.password, req, res);
 		successHandler(res, 'Login successful', { token }, 200);
 	} catch (error) {
 		console.log(error);

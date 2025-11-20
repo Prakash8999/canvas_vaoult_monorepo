@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { errorHandler } from "./responseHandler";
+import { errorHandler } from "../responseHandler";
 
 // Role-based authorization middleware
 // This should be used AFTER the authUser middleware
@@ -20,7 +20,7 @@ export const requireRole = (allowedRoles: string[] = []) => {
 		// Check if user has required role (when you add role field to User model)
 		// For now, this is a placeholder since the User model doesn't have a role field
 		// You can uncomment and modify this when you add roles to your User model
-		
+
 		/*
 		const userRole = req.user.role || 'user';
 		if (!allowedRoles.includes(userRole)) {

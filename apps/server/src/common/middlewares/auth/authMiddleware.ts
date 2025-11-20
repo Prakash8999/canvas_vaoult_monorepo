@@ -1,9 +1,10 @@
 import { NextFunction, Request, Response } from "express";
-import { errorHandler } from "./responseHandler";
+
 import jwt from "jsonwebtoken";
-import { AuthenticatedUser } from "../types/authInterface";
-import { User } from "../../modules/users/users.model";
-import { authLogger } from "../utils/authLogger";
+import { AuthenticatedUser } from "../../types/authInterface";
+import { User } from "../../../modules/users/users.model";
+import { authLogger } from "../../utils/authLogger";
+import { errorHandler } from "../responseHandler";
 
 
 // Helper function to validate JWT secret
@@ -25,19 +26,19 @@ const extractToken = (req: Request): string | null => {
 	if (authHeader && authHeader.startsWith('Bearer ')) {
 		return authHeader.slice(7);
 	}
-	
+
 	// Fallback to custom x-auth-token header
 	const customHeader = req.header('x-auth-token');
 	if (customHeader) {
 		return customHeader.startsWith('Bearer ') ? customHeader.slice(7) : customHeader;
 	}
-	
+
 	return null;
 };
 
 // Helper function to get user from cache or database
 const getUserById = async (userId: number): Promise<any | null> => {
-	
+
 
 	try {
 		const user = await User.findOne({
@@ -47,8 +48,8 @@ const getUserById = async (userId: number): Promise<any | null> => {
 			},
 			attributes: ['id', 'email', 'name', 'is_email_verified', 'profile_url', 'created_at'],
 		});
-	
-		
+
+
 		return user?.dataValues || null;
 	} catch (error) {
 		console.error('Database error in getUserById:', error);
@@ -56,7 +57,7 @@ const getUserById = async (userId: number): Promise<any | null> => {
 	}
 };
 
-export const authUser = async (req: Request, res: Response, next: NextFunction)=> {
+export const authUser = async (req: Request, res: Response, next: NextFunction) => {
 
 
 
@@ -68,7 +69,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			: undefined) ||
 		'unknown';
 	const userAgent = req.get('User-Agent') || 'unknown';
-	
+
 	try {
 		// Extract token from headers
 		const token = extractToken(req);
@@ -85,7 +86,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			return;
 		}
 		console.log('Extracted Token:', token);
-		
+
 		// Validate token format (basic check)
 		if (token.length < 10) {
 			authLogger.log({
@@ -99,7 +100,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			errorHandler(res, "Invalid token format", {}, 401);
 			return;
 		}
-		
+
 		// Verify JWT token
 		let decoded: AuthenticatedUser;
 		try {
@@ -123,7 +124,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 				method: req.method,
 				error: error.message
 			});
-			
+
 			switch (error.name) {
 				case 'TokenExpiredError':
 					errorHandler(res, "Token has expired. Please login again", {}, 401);
@@ -140,7 +141,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			}
 			return;
 		}
-		
+
 		// Validate decoded token structure
 		if (!decoded.userId || !decoded.email) {
 			authLogger.log({
@@ -154,7 +155,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			errorHandler(res, "Invalid token payload", {}, 401);
 			return;
 		}
-		
+
 		// Get user from database with caching
 		const userData = await getUserById(decoded.userId);
 		if (!userData) {
@@ -171,7 +172,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			errorHandler(res, "User not found or has been disabled", {}, 401);
 			return;
 		}
-		
+
 		// Additional security check: verify email matches
 		if (userData.email !== decoded.email) {
 			authLogger.log({
@@ -187,7 +188,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			errorHandler(res, "Token validation failed", {}, 401);
 			return;
 		}
-		
+
 		// Attach user data to request object
 		req.user = {
 			userId: decoded.userId,
@@ -198,7 +199,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			iat: decoded.iat,
 			exp: decoded.exp,
 		};
-		
+
 		// Log successful authentication
 		authLogger.log({
 			action: 'LOGIN_SUCCESS',
@@ -209,7 +210,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			url: req.url,
 			method: req.method
 		});
-		
+
 		next();
 	} catch (error: any) {
 		// Log error for debugging but don't expose internal details
@@ -222,7 +223,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			method: req.method,
 			error: error.message
 		});
-		
+
 		console.error('Auth middleware error:', {
 			error: error.message,
 			stack: error.stack,
@@ -230,7 +231,7 @@ export const authUser = async (req: Request, res: Response, next: NextFunction)=
 			url: req.url,
 			method: req.method,
 		});
-		
+
 		errorHandler(res, "Authentication failed", {}, 500);
 		return;
 	}
