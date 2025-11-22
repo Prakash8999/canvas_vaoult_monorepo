@@ -5,6 +5,9 @@ import { AuthenticatedUser } from "../../types/authInterface";
 import { User } from "../../../modules/users/users.model";
 import { authLogger } from "../../utils/authLogger";
 import { errorHandler } from "../responseHandler";
+import { hashToken } from "../../utils/authTokenService";
+import AuthToken from "../../../modules/shared/model/auth/authToken.model";
+import { Op } from "sequelize";
 
 
 // Helper function to validate JWT secret
@@ -59,7 +62,23 @@ const getUserById = async (userId: number): Promise<any | null> => {
 
 export const authUser = async (req: Request, res: Response, next: NextFunction) => {
 
+	const rawToken = req.cookies?.refresh_token;
+	if (!rawToken) {
+		errorHandler(res, "Authentication token not found", {}, 401);
+		return;
+	}
 
+	const tokenHash = hashToken(rawToken);
+	const now = new Date();
+	const session = await AuthToken.findOne({
+		where: {
+			token_hash: tokenHash, revoked: false, expires_at: { [Op.gt]: now },
+		}
+	});
+	if (!session) {
+		errorHandler(res, "Invalid authentication token", {}, 401);
+		return;
+	}
 
 	const xForwardedFor = req.headers['x-forwarded-for'];
 	const clientIP =

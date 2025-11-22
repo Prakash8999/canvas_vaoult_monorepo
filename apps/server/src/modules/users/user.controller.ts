@@ -1,8 +1,9 @@
 import { Request, Response } from 'express';
-import { CreateUserSchema, UserLoginSchema, UserOtpVerifySchema, ForgotPasswordSchema, ResetPasswordWithOtpSchema, ResetPasswordWithTokenSchema, UpdateUserSchema } from './users.model';
+import User, { CreateUserSchema, UserLoginSchema, UserOtpVerifySchema, ForgotPasswordSchema, ResetPasswordWithOtpSchema, ResetPasswordWithTokenSchema, UpdateUserSchema } from './users.model';
 import { successHandler, errorHandler } from '../../common/middlewares/responseHandler';
 import { parseError } from '../../common/utils/error.parser';
 import * as userService from './user.service';
+import { clearRefreshTokenCookie, findValidRefreshSession, generateAccessToken, revokeRefreshSession, rotateRefreshToken, setRefreshTokenCookie } from '../../common/utils/authTokenService';
 
 
 export const addUser = async (req: Request, res: Response) => {
@@ -24,7 +25,7 @@ export const addUser = async (req: Request, res: Response) => {
 export const verifyOtp = async (req: Request, res: Response) => {
 	try {
 		const body = UserOtpVerifySchema.parse(req.body);
-		const { token } = await userService.verifyOtpService(body.email, body.otp);
+		const { token } = await userService.verifyOtpService(body.email, body.otp, req, res);
 		successHandler(res, 'Email verified successfully', { token }, 200);
 	} catch (error) {
 		const errorParser = parseError(error);
@@ -148,3 +149,93 @@ export const resetPasswordWithToken = async (req: Request, res: Response) => {
 		errorHandler(res, "Failed to reset password", errorParser.message, errorParser.statusCode);
 	}
 }
+
+
+export const logoutUser = async (req: Request, res: Response) => {
+	try {
+		if (!req.user) {
+			errorHandler(res, 'Unauthorized', {}, 401);
+			return;
+		}
+		await userService.logoutUserService(req.user.userId);
+		successHandler(res, 'User logged out successfully', {}, 200);
+	} catch (error) {
+		const errorParser = parseError(error);
+		errorHandler(res, "Failed to logout user", errorParser.message, errorParser.statusCode);
+	}
+}
+
+
+
+
+export const refreshTokenController = async (req: Request, res: Response) => {
+	try {
+		const rawToken = req.cookies?.refresh_token;
+		if (!rawToken) {
+			errorHandler(res, "Refresh token missing", {}, 401);
+			return
+		}
+
+		// find session by hashed token
+		const session = await findValidRefreshSession(rawToken);
+		if (!session) {
+			errorHandler(res, "Invalid or expired refresh token", {}, 401);
+			return
+		}
+
+		// Optionally: verify IP / User-Agent consistency here
+		// if (session.ip_address !== calculatedIP) { ... }
+
+		// get user
+		const user = await User.findOne({
+			where: { id: session.user_id, block: false },
+			attributes: ["id", "email"],
+		});
+
+		if (!user) {
+			errorHandler(res, "User not found", {}, 401);
+			return
+		}
+
+		// rotate refresh token
+		const newRawRefreshToken = await rotateRefreshToken(session, req);
+		setRefreshTokenCookie(res, newRawRefreshToken);
+
+		// new access token
+		const accessToken = generateAccessToken({
+			id: user.dataValues.id,
+			email: user.dataValues.email,
+		});
+
+		successHandler(res, "Token Generated", accessToken, 200)
+	} catch (err: any) {
+		console.error("Refresh token error:", err);
+		errorHandler(res, "Could not refresh token", {}, 500);
+		return
+
+	}
+};
+
+
+
+
+export const logoutController = async (req: Request, res: Response) => {
+	try {
+		const rawToken = req.cookies?.refresh_token;
+		const userId = req.user.userId;
+		console.log("raw token ", rawToken)
+
+		if (rawToken) {
+			const session = await findValidRefreshSession(rawToken, userId);
+			if (session) {
+				await revokeRefreshSession(session);
+			}
+		}
+
+		clearRefreshTokenCookie(res);
+		successHandler(res, "Logged out successfully", {}, 200)
+	} catch (err: any) {
+		console.error("Logout error:", err);
+		errorHandler(res, "Logout failed", {}, 500);
+	}
+};

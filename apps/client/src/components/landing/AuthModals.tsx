@@ -63,7 +63,10 @@ export function AuthModals({ open, onOpenChange, mode, onModeChange }: AuthModal
         const res = await axios.post(`${import.meta.env.VITE_BASE_URL}/api/v1/user/login`, {
           email,
           password
-        });
+        },
+          { withCredentials: true }
+
+        );
         // Save token to zustand and localStorage
         const token = res.data?.data?.token;
         if (token) {
@@ -91,6 +94,8 @@ export function AuthModals({ open, onOpenChange, mode, onModeChange }: AuthModal
       const res = await axios.post(`${import.meta.env.VITE_BASE_URL}/api/v1/user/verify-otp`, {
         email,
         otp
+      }, {
+        withCredentials: true
       });
       // Save token to zustand and localStorage
       const token = res.data?.data?.token;

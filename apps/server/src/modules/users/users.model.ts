@@ -11,7 +11,7 @@ extendZodWithOpenApi(z);
 // 🧩 Zod Schema for User
 // -----------------------------
 export const UserSchema = z.object({
-	id: z.number().int().optional().openapi({
+	id: z.number().int().openapi({
 		example: 1,
 		description: 'Unique identifier for the record',
 	}),
@@ -242,7 +242,7 @@ User.init(
 		tableName: 'users',
 		createdAt: 'created_at',
 		updatedAt: 'updated_at',
-	
+
 	}
 );
 

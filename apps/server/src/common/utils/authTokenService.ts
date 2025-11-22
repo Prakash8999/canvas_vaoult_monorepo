@@ -3,6 +3,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
 import AuthToken from "../../modules/shared/model/auth/authToken.model";
+import { Op } from "sequelize";
 
 const ACCESS_TOKEN_TTL = "1d";        // access token lifetime
 const REFRESH_TOKEN_DAYS = 30;         // refresh token lifetime (days)
@@ -28,7 +29,7 @@ export const generateAccessToken = (user: { id: number; email: string }) => {
     );
 };
 
-const hashToken = (token: string) =>
+export const hashToken = (token: string) =>
     crypto.createHash("sha256").update(token).digest("hex");
 
 export const createRefreshToken = async (
@@ -65,23 +66,34 @@ export const createRefreshToken = async (
 };
 
 export const setRefreshTokenCookie = (res: Response, token: string) => {
-    const secure = process.env.NODE_ENV === "production";
+    const isProduction = process.env.NODE_ENV === "production";
 
-    res.cookie("refresh_token", token, {
+    // In development with different ports (e.g., frontend:8080, backend:3000),
+    // we need sameSite: 'none' and secure: true for cross-origin cookies to work
+    const cookieOptions = {
         httpOnly: true,
-        secure,
-        sameSite: "lax",
-        path: "/api/auth/refresh",
+        secure: isProduction ? true : false, // Required for sameSite: 'none', also works in dev with https or localhost
+        sameSite: isProduction ? "strict" as const : "lax" as const, // 'none' allows cross-origin in dev
+        path: "/",
         maxAge: 1000 * 60 * 60 * 24 * REFRESH_TOKEN_DAYS,
-    });
+    };
+
+    res.cookie("refresh_token", token, cookieOptions);
+
+    console.log('🍪 Cookie set with options:', cookieOptions);
+    console.log('🍪 Response headers after cookie set:', res.getHeaders());
 };
 
 export const clearRefreshTokenCookie = (res: Response) => {
+    const isProduction = process.env.NODE_ENV === "production";
+
     res.clearCookie("refresh_token", {
-        path: "/api/auth/refresh",
+        httpOnly: true,
+        secure: true,
+        sameSite: isProduction ? "strict" : "none",
+        path: "/",
     });
 };
-
 export const findValidRefreshSession = async (
     rawToken: string,
     userId?: number
@@ -89,22 +101,25 @@ export const findValidRefreshSession = async (
     const tokenHash = hashToken(rawToken);
     const now = new Date();
 
-    const where: any = {
+    const whereOptions: any = {
         token_hash: tokenHash,
         revoked: false,
-        expires_at: { $gt: now } as any,
+        expires_at: { [Op.gt]: now },
     };
 
-    if (userId) where.user_id = userId;
+    if (userId) whereOptions.user_id = userId;
 
-    const session = await AuthToken.findOne({ where });
+    const session = await AuthToken.findOne({ where: whereOptions });
+
+    console.log("session =>", session);
+
     return session;
 };
 
 export const revokeRefreshSession = async (session: AuthToken) => {
-    session.revoked = true;
-    await session.save();
+    await session.update({ revoked: true });
 };
+
 
 export const rotateRefreshToken = async (
     session: AuthToken,

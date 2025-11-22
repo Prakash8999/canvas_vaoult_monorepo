@@ -18,5 +18,6 @@ router.post('/reset-password-token', userController.resetPasswordWithToken);
 router.get('/', authUser, userController.getUserProfile);
 router.patch('/', authUser, userController.updateUserProfile);
 router.delete('/', authUser, userController.blockUser);
+router.post('/logout', authUser, userController.logoutController);
 
 export default router;

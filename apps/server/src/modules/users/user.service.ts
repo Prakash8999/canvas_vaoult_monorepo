@@ -1,5 +1,4 @@
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { User, UserCreationAttributes } from './users.model';
 import redisClient from '../../config/redis';
@@ -61,7 +60,7 @@ export async function createUserService(body: UserCreationAttributes) {
   return { user, otp };
 }
 
-export async function verifyOtpService(email: string, otp: string) {
+export async function verifyOtpService(email: string, otp: string, req: Request, res: Response) {
   const user = await User.findOne({ where: { email }, attributes: ['id', 'email', 'is_email_verified'] });
   if (!user) {
     const err: any = new Error('User not found');
@@ -92,12 +91,13 @@ export async function verifyOtpService(email: string, otp: string) {
   if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined in environment variables');
   // Sign token with the expected claims (issuer & audience) and a 'userId' field
   // so the auth middleware's jwt.verify calls succeed.
-  const token = jwt.sign(
-    { userId: user.dataValues.id, email: user.dataValues.email },
-    process.env.JWT_SECRET,
-    { expiresIn: '1d', issuer: 'canvas-backend', audience: 'canvas-users' }
-  );
-  return { token };
+  const accessToken = generateAccessToken({
+    id: user.dataValues.id!,
+    email: user.dataValues.email!,
+  });
+  const refreshToken = await createRefreshToken(user.dataValues.id!, req);
+  setRefreshTokenCookie(res, refreshToken);
+  return { token: accessToken };
 }
 
 export async function loginUserService(email: string, otpOrPassword: string, req: Request, res: Response) {
@@ -130,9 +130,6 @@ export async function loginUserService(email: string, otpOrPassword: string, req
   // 2) refresh token + cookie
   const refreshToken = await createRefreshToken(user.dataValues.id!, req);
   setRefreshTokenCookie(res, refreshToken);
-
-
-
   return { token: accessToken }
 
 }
@@ -266,4 +263,9 @@ export async function resetPasswordWithTokenService(token: string, newPassword: 
   await redisClient.del(`user:password-reset-token:${token}`);
 
   return { message: 'Password reset successfully' };
+}
+
+export async function logoutUserService(userId: number) {
+
+
 }

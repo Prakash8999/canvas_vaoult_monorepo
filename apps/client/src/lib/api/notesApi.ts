@@ -55,6 +55,7 @@ console.log('API_BASE_URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: `${API_BASE_URL}/api/v1`,
+  withCredentials: true
 });
 
 // Add auth interceptor
@@ -84,7 +85,7 @@ export const notesApi = {
     const notesData = response.data.data;
     if (Array.isArray(notesData)) {
       // Legacy format: data is array of notes
-      console.log('Legacy notes format detected' , notesData);
+      console.log('Legacy notes format detected', notesData);
       return {
         notes: notesData,
         pagination: {
@@ -197,11 +198,11 @@ export const convertApiNoteToLocal = (apiNote: any) => {
     isPinned: Boolean(apiNote.pinned),
     parent_wikilinks: apiNote.parent_wikilinks || [],
     child_wikilinks: apiNote.child_wikilinks || [],
-    version: apiNote.version ,
+    version: apiNote.version,
     note_uid: apiNote.note_uid,
     wordCount: calculateWordCount(apiNote.content || { blocks: [] }),
   };
-  
+
   // console.log("Local note (after conversion):", localNote);
   return localNote;
 };
@@ -214,7 +215,7 @@ export const convertLocalNoteToApi = (localNote: any): CreateNoteRequest | Updat
     tags: localNote.tags || [],
     pinned: localNote.isPinned || false,
   };
-  
+
   // Add WikiLink-specific fields if present
   if (localNote.is_wiki_link !== undefined) {
     result.is_wiki_link = localNote.is_wiki_link;
@@ -222,14 +223,14 @@ export const convertLocalNoteToApi = (localNote: any): CreateNoteRequest | Updat
   if (localNote.parent_note_id !== undefined) {
     result.parent_note_id = localNote.parent_note_id;
   }
-  
+
   return result;
 };
 
 // Calculate word count from EditorJS content
 const calculateWordCount = (content: OutputData): number => {
   if (!content.blocks) return 0;
-  
+
   return content.blocks.reduce((count, block) => {
     if (block.data?.text) {
       const text = typeof block.data.text === 'string' ? block.data.text : '';

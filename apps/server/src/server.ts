@@ -3,14 +3,18 @@ import swaggerUi from 'swagger-ui-express';
 import { combinedOpenApiDoc } from './common/docs';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
+
+// Load environment variables FIRST
+dotenv.config();
+
 const host = process.env.HOST ?? 'localhost';
 const port = process.env.PORT ? Number(process.env.PORT) : 3000;
 
 const app = express();
 app.use(express.json());
-dotenv.config();
-app.use(cors({ origin: ['http://localhost:8080'] , methods: ['GET', 'POST', 'PATCH', 'DELETE'], credentials: true }));
-
+app.use(cookieParser());
+app.use(cors({ origin: ['http://localhost:8080'], methods: ['GET', 'POST', 'PATCH', 'DELETE'], credentials: true }));
 
 
 
@@ -34,12 +38,12 @@ async function initApp() {
     console.error('Redis connection failed:', err);
   }
 }
-import  './jobs/otp.worker';
+import './jobs/otp.worker';
 // later on shutdown:
 // Use a signal handler to close the worker gracefully
 // async function workers() {
-  // await otpWorker.close();
-  //  otpWorker.close();
+// await otpWorker.close();
+//  otpWorker.close();
 // } 
 // workers()
 initApp();

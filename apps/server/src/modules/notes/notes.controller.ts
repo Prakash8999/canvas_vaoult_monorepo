@@ -24,6 +24,7 @@ export const createNote = async (req: Request, res: Response) => {
 export const getAllNotes = async (req: Request, res: Response) => {
 	try {
 		const userId = req.user.userId;
+		console.log("cookies ", req.cookies.refresh_token)
 
 		// Parse pagination parameters
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;

@@ -9,9 +9,9 @@ import {
 	getAllTags,
 
 } from './notes.controller';
-import { authUser } from '../../common/middlewares/auth';
 import { validateBody } from '../../common/middlewares/validator';
 import { CreateNoteSchema, UpdateNoteSchema } from './notes.model';
+import { authUser } from '../../common/middlewares/auth/authMiddleware';
 
 const router = Router();
 
