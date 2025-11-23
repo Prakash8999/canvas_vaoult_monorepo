@@ -1,5 +1,5 @@
-import axios from 'axios';
 import { OutputData } from '@editorjs/editorjs';
+import apiClient from './axiosInstance';
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
 
@@ -45,25 +45,7 @@ export interface NotesListResponse {
   };
 }
 
-// API client with authentication
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('auth_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-};
-
 console.log('API_BASE_URL:', API_BASE_URL);
-
-const api = axios.create({
-  baseURL: `${API_BASE_URL}/api/v1`,
-  withCredentials: true
-});
-
-// Add auth interceptor
-api.interceptors.request.use((config) => {
-  const headers = getAuthHeaders();
-  Object.assign(config.headers, headers);
-  return config;
-});
 
 // Auto-save tracking
 interface AutoSaveState {
@@ -80,7 +62,7 @@ let autoSaveState: AutoSaveState = {};
 export const notesApi = {
   // Get all notes with pagination
   getAllNotes: async (limit = 100, offset = 0, isGraph = false): Promise<NotesListResponse> => {
-    const response = await api.get(`/note/notes?limit=${limit}&offset=${offset}&isGraph=${isGraph}`);
+    const response = await apiClient.get(`/note/notes?limit=${limit}&offset=${offset}&isGraph=${isGraph}`);
     // Handle both response formats: array directly or wrapped in object
     const notesData = response.data.data;
     if (Array.isArray(notesData)) {
@@ -115,14 +97,14 @@ export const notesApi = {
 
   // Get a specific note by ID
   getNote: async (uid: string): Promise<ApiNote> => {
-    const response = await api.get(`/note/${uid}`);
+    const response = await apiClient.get(`/note/${uid}`);
     return response.data.data;
   },
 
   // Check if a note exists by note_uid (returns boolean)
   checkNoteExists: async (noteUid: string): Promise<boolean> => {
     try {
-      await api.get(`/note/${noteUid}`);
+      await apiClient.get(`/note/${noteUid}`);
       return true;
     } catch (error: any) {
       if (error.response?.status === 404) {
@@ -134,19 +116,19 @@ export const notesApi = {
 
   // Create a new note
   createNote: async (noteData: CreateNoteRequest): Promise<ApiNote> => {
-    const response = await api.post('/note', noteData);
+    const response = await apiClient.post('/note', noteData);
     return response.data.data;
   },
 
   // Update an existing note
   updateNote: async (id: number, noteData: UpdateNoteRequest): Promise<ApiNote> => {
-    const response = await api.patch(`/note/${id}`, noteData);
+    const response = await apiClient.patch(`/note/${id}`, noteData);
     return response.data.data;
   },
 
   // Delete a note
   deleteNote: async (id: number): Promise<{ deletedId: number }> => {
-    const response = await api.delete(`/note/${id}`);
+    const response = await apiClient.delete(`/note/${id}`);
     return response.data.data;
   },
 

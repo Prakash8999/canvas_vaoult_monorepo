@@ -20,7 +20,7 @@ export const generateAccessToken = (user: { id: number; email: string, deviceId:
     const secret = validateJwtSecret();
 
     return jwt.sign(
-        { userId: user.id, email: user.email, deviceId: user.deviceId, jti: user.jti},
+        { userId: user.id, email: user.email, deviceId: user.deviceId, jti: user.jti },
         secret,
         {
             expiresIn: ACCESS_TOKEN_TTL,
@@ -52,7 +52,7 @@ export const createRefreshToken = async (
         "unknown";
 
     const userAgent = req.get("User-Agent") || "unknown";
-
+    console.log("user agent =>", userId)
     await AuthToken.create({
         user_id: userId,
         token_hash: tokenHash,
@@ -129,12 +129,12 @@ export const rotateRefreshToken = async (
     // revoke old one
     session.revoked = true;
 
-    const rawToken = await createRefreshToken(session.user_id, req);
+    const rawToken = await createRefreshToken(session.dataValues.user_id, req);
 
     // get new session to store relation (optional)
     const tokenHash = hashToken(rawToken);
     const newSession = await AuthToken.findOne({
-        where: { token_hash: tokenHash, user_id: session.user_id },
+        where: { token_hash: tokenHash, user_id: session.dataValues.user_id },
     });
 
     if (newSession) {

@@ -32,8 +32,9 @@ export const getAllNotes = async (req: Request, res: Response) => {
 		const search = req.query.search ? (req.query.search as string) : undefined;
 		const isWikilink = req.query.isWikiLink === 'true' || req.query.isWikiLink ? true : false;
 		const isGraph = req.query.isGraph === 'true' || req.query.isGraph ? true : false;
+		const isPinned = req.query.isPinned === 'true' || req.query.isPinned ? true : false;
 
-		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink, isGraph);
+		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink, isGraph, isPinned);
 		// console.log('Notes retrieved:', notes);
 
 		// 1. Extract tags for each note

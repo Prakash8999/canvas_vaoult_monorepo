@@ -122,7 +122,7 @@ export function buildAllTags(notes: ExtractedNote[]): AllTagEntry[] {
 	}));
 }
 
-export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string, isWikilink: boolean = false, isGraph: boolean = false): Promise<{ notes: Note[], total: number }> => {
+export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string, isWikilink: boolean = false, isGraph: boolean = false, isPinned: boolean = false): Promise<{ notes: Note[], total: number }> => {
 	try {
 		const whereClause: any = { user_id: userId };
 		if (search) {
@@ -130,6 +130,9 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 			whereClause.title = isWikilink
 				? search                     // exact match
 				: { [Op.iLike]: `%${search}%` };
+		}
+		if (isPinned) {
+			whereClause.pinned = true;
 		}
 		const includeOptions = isGraph ? [
 			{

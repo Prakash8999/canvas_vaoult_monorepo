@@ -162,7 +162,6 @@ export const refreshTokenController = async (req: Request, res: Response) => {
 			errorHandler(res, "Refresh token missing", {}, 401);
 			return
 		}
-
 		// find session by hashed token
 		const session = await findValidRefreshSession(rawToken);
 		if (!session) {
@@ -170,12 +169,14 @@ export const refreshTokenController = async (req: Request, res: Response) => {
 			return
 		}
 
+		console.log("session data", session.dataValues)
+
 		// Optionally: verify IP / User-Agent consistency here
 		// if (session.ip_address !== calculatedIP) { ... }
 
 		// get user
 		const user = await User.findOne({
-			where: { id: session.user_id, block: false },
+			where: { id: session.dataValues.user_id, block: false },
 			attributes: ["id", "email"],
 		});
 
@@ -183,10 +184,6 @@ export const refreshTokenController = async (req: Request, res: Response) => {
 			errorHandler(res, "User not found", {}, 401);
 			return
 		}
-
-
-		await redisClient.del(redisKey("session", user.dataValues.id, req.user.deviceId, req.user.jti));
-
 		// rotate refresh token
 		const newRawRefreshToken = await rotateRefreshToken(session, req);
 		setRefreshTokenCookie(res, newRawRefreshToken);
@@ -202,12 +199,13 @@ export const refreshTokenController = async (req: Request, res: Response) => {
 			jti: jti
 		});
 		const redisKeyGen = redisKey("session", user.dataValues.id, deviceId, jti);
-		await redisClient.set(redisKeyGen, accessToken, { EX: 60 * 60 }); // 1 hour
+		await redisClient.set(redisKeyGen, accessToken, { EX: 60 * 60 }); // 20 seconds
 
 		successHandler(res, "Token Generated", accessToken, 200)
 	} catch (err: any) {
 		console.error("Refresh token error:", err);
-		errorHandler(res, "Could not refresh token", {}, 500);
+		const errorParser = parseError(err)
+		errorHandler(res, errorParser.message, err.message, errorParser.statusCode);
 		return
 
 	}
@@ -230,11 +228,12 @@ export const logoutController = async (req: Request, res: Response) => {
 		}
 
 		clearRefreshTokenCookie(res);
-		let redisKeyGen =  redisKey("session", userId, req.user.deviceId, req.user.jti);
+		let redisKeyGen = redisKey("session", userId, req.user.deviceId, req.user.jti);
 		await redisClient.del(redisKeyGen);
 		successHandler(res, "Logged out successfully", {}, 200)
 	} catch (err: any) {
 		console.error("Logout error:", err);
-		errorHandler(res, "Logout failed", {}, 500);
+		const errorParser = parseError(err);
+		errorHandler(res, errorParser.message, err.message, errorParser.statusCode);
 	}
 };

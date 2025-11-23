@@ -5,7 +5,7 @@ import redisClient from '../../config/redis';
 import { otpQueue } from '../../jobs/producer';
 import { createRefreshToken, generateAccessToken, setRefreshTokenCookie } from '../../common/utils/authTokenService';
 import { Request, Response } from 'express';
-import {  v4 } from 'uuid';
+import { v4 } from 'uuid';
 import { redisKey } from '../../common/utils/redisKey';
 
 
@@ -94,8 +94,8 @@ export async function verifyOtpService(email: string, otp: string, req: Request,
   // Sign token with the expected claims (issuer & audience) and a 'userId' field
   // so the auth middleware's jwt.verify calls succeed.
 
-  const deviceId = v4();  
-const jti = v4();
+  const deviceId = v4();
+  const jti = v4();
   const accessToken = generateAccessToken({
     id: user.dataValues.id!,
     email: user.dataValues.email!,
@@ -104,7 +104,7 @@ const jti = v4();
   });
   const refreshToken = await createRefreshToken(user.dataValues.id, req);
   setRefreshTokenCookie(res, refreshToken);
-const redisKeyGen = redisKey("session", user.dataValues.id, deviceId, jti);
+  const redisKeyGen = redisKey("session", user.dataValues.id, deviceId, jti);
   await redisClient.set(redisKeyGen, accessToken, { EX: 60 * 60 }); // 1 hour
   return { token: accessToken };
 }
@@ -129,9 +129,9 @@ export async function loginUserService(email: string, otpOrPassword: string, req
     throw err;
   }
   if (!process.env.JWT_SECRET) throw new Error('JWT_SECRET is not defined in environment variables');
-const deviceId =v4()
-const jti = v4();
-// 1) access token
+  const deviceId = v4()
+  const jti = v4();
+  // 1) access token
   const accessToken = generateAccessToken({
     id: user.dataValues.id!,
     email: user.dataValues.email!,
@@ -144,7 +144,7 @@ const jti = v4();
   setRefreshTokenCookie(res, refreshToken);
 
   let redisKeyGen = redisKey("session", user.dataValues.id, deviceId, jti);
-  await redisClient.set(redisKeyGen, accessToken, { EX: 60 * 60 }); // 1 hour
+  await redisClient.set(redisKeyGen, accessToken, { EX: 60 * 60 }); // 20 seconds
   return { token: accessToken }
 
 }

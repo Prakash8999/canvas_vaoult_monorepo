@@ -101,33 +101,95 @@ export default function NotesListPage() {
 
 
   // Function to fetch notes with search
-  const fetchNotesWithSearch = async (query: string) => {
+  // const fetchNotesWithSearch = async (query: string) => {
+  //   setIsSearching(true);
+  //   try {
+  //     const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
+  //     const token = localStorage.getItem('auth_token');
+  //     const response = await fetch(`${API_BASE_URL}/api/v1/note/notes?search=${encodeURIComponent(query)}&limit=50`, {
+  //       headers: {
+  //         'Authorization': token ? `Bearer ${token}` : '',
+  //         'Content-Type': 'application/json',
+  //       },
+  //     });
+  //     if (!response.ok) {
+  //       throw new Error('Failed to fetch search results');
+  //     }
+  //     const data = await response.json();
+  //     // Handle the response format
+  //     const notesData = data.data;
+  //     let notesArray = [];
+  //     if (Array.isArray(notesData)) {
+  //       notesArray = notesData;
+  //     } else if (notesData && notesData.notes) {
+  //       notesArray = notesData.notes;
+  //     } else {
+  //       notesArray = [];
+  //     }
+
+  //     // Map API response to match frontend expected format
+  //     const mappedNotes = notesArray.map(note => ({
+  //       id: note.id,
+  //       title: note.title,
+  //       content: note.content,
+  //       tags: note.tags || [],
+  //       note_uid: note.note_uid,
+  //       isPinned: note.pinned,
+  //       modifiedAt: note.updated_at,
+  //       wordCount: getWordCount(note.content),
+  //     }));
+
+  //     setApiSearchResults(mappedNotes);
+  //   } catch (error) {
+  //     console.error('Error fetching search results:', error);
+  //     setApiSearchResults([]);
+  //     toast.error('Failed to search notes');
+  //   } finally {
+  //     setIsSearching(false);
+  //   }
+  // };
+
+  const fetchNotesWithSearch = async (query: string, pinned: boolean) => {
     setIsSearching(true);
     try {
       const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`${API_BASE_URL}/api/v1/note/notes?search=${encodeURIComponent(query)}&limit=50`, {
+
+      // Start with base URL
+      let url = `${API_BASE_URL}/api/v1/note/notes?limit=50`;
+
+      // 1. Append Search Query if it exists
+      if (query) {
+        url += `&search=${encodeURIComponent(query)}`;
+      }
+
+      // 2. Append Pinned flag if true
+      // This allows URLs like: ...?search=foo&isPinned=true
+      if (pinned) {
+        url += `&isPinned=true`;
+      }
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
       });
-      if (!response.ok) {
-        throw new Error('Failed to fetch search results');
-      }
+
+      if (!response.ok) throw new Error('Failed to fetch search results');
+
       const data = await response.json();
-      // Handle the response format
+
+      // ... (Keep your existing data mapping logic exactly as it is) ...
       const notesData = data.data;
       let notesArray = [];
       if (Array.isArray(notesData)) {
         notesArray = notesData;
       } else if (notesData && notesData.notes) {
         notesArray = notesData.notes;
-      } else {
-        notesArray = [];
       }
 
-      // Map API response to match frontend expected format
       const mappedNotes = notesArray.map(note => ({
         id: note.id,
         title: note.title,
@@ -149,7 +211,6 @@ export default function NotesListPage() {
     }
   };
 
-
   const {
     data: pagedData,
     isLoading: loading,
@@ -157,6 +218,7 @@ export default function NotesListPage() {
   } = usePaginatedNotes(pageIndex, pageSize);
   const { createNote, updateNote, deleteNote: deleteNoteMutation, isCreating, isUpdating, isDeleting } = useNoteMutations();
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
   const [apiSearchResults, setApiSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const {
@@ -178,13 +240,13 @@ export default function NotesListPage() {
   }, [searchQuery]);
 
   // Fetch search results from API
-  useEffect(() => {
-    if (debouncedSearchQuery) {
-      fetchNotesWithSearch(debouncedSearchQuery);
-    } else {
-      setApiSearchResults([]);
-    }
-  }, [debouncedSearchQuery]);
+  // useEffect(() => {
+  //   if (debouncedSearchQuery) {
+  //     fetchNotesWithSearch(debouncedSearchQuery);
+  //   } else {
+  //     setApiSearchResults([]);
+  //   }
+  // }, [debouncedSearchQuery]);
 
 
   const [showPinnedOnly, setShowPinnedOnly] = useState(false);
@@ -204,12 +266,16 @@ export default function NotesListPage() {
 
   // Fetch search results from API
   useEffect(() => {
-    if (debouncedSearchQuery) {
-      fetchNotesWithSearch(debouncedSearchQuery);
+    // Check if we need to fetch from API (either searching OR filtering by pin)
+    if (debouncedSearchQuery || showPinnedOnly) {
+      // Pass BOTH current values. 
+      // Example: if query is "Project" and Pinned is true, both are sent.
+      fetchNotesWithSearch(debouncedSearchQuery, showPinnedOnly);
     } else {
+      // Only clear results if BOTH are inactive
       setApiSearchResults([]);
     }
-  }, [debouncedSearchQuery]);
+  }, [debouncedSearchQuery, showPinnedOnly]); // Dependencies ensure this runs on any change
 
   // Notes for the current page
   const pageNotes = pagedData?.notes || [];
@@ -219,13 +285,22 @@ export default function NotesListPage() {
   // Create a notes map for quick lookup by id
   const notes: Record<string, typeof pageNotes[0]> = Object.fromEntries(allNotes.map(note => [note.id, note]));
 
-  // Get notes to display based on filters
+  // // Get notes to display based on filters
+  // const getDisplayedNotes = () => {
+  //   let notesToShow = debouncedSearchQuery ? apiSearchResults : allNotes;
+  //   if (showPinnedOnly) {
+  //     notesToShow = notesToShow.filter(note => note.isPinned);
+  //   }
+  //   return notesToShow;
+  // };
+
   const getDisplayedNotes = () => {
-    let notesToShow = debouncedSearchQuery ? apiSearchResults : allNotes;
-    if (showPinnedOnly) {
-      notesToShow = notesToShow.filter(note => note.isPinned);
+    // If searching OR filtering by pin, use the API results
+    if (debouncedSearchQuery || showPinnedOnly) {
+      return apiSearchResults;
     }
-    return notesToShow;
+    // Otherwise, use the standard default pagination
+    return allNotes;
   };
 
   const displayedNotes = getDisplayedNotes();
@@ -580,16 +655,25 @@ export default function NotesListPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end" className="bg-workspace-panel border-workspace-border">
+                                {/* 1. Open Option */}
                                 <DropdownMenuItem
-                                  onClick={() => handleOpenNote(note.note_uid)}
-                                  className="flex items-center gap-2 hover:bg-workspace-hover"
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Stop the card from receiving the click
+                                    handleOpenNote(note.note_uid);
+                                  }}
+                                  className="flex items-center gap-2 hover:bg-workspace-hover cursor-pointer"
                                 >
                                   <FileText size={14} />
                                   Open
                                 </DropdownMenuItem>
+
+                                {/* 2. Pin Option - FIXED: Added event argument and stopPropagation */}
                                 <DropdownMenuItem
-                                  onClick={() => handleTogglePin(note.id)}
-                                  className="flex items-center gap-2 hover:bg-workspace-hover"
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Stop the card from receiving the click
+                                    handleTogglePin(note.id);
+                                  }}
+                                  className="flex items-center gap-2 hover:bg-workspace-hover cursor-pointer"
                                 >
                                   {note.isPinned ? (
                                     <>
@@ -603,9 +687,14 @@ export default function NotesListPage() {
                                     </>
                                   )}
                                 </DropdownMenuItem>
+
+                                {/* 3. Delete Option - Ensure stopPropagation is the first line */}
                                 <DropdownMenuItem
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id, note.title); }}
-                                  className="flex items-center gap-2 text-destructive hover:bg-destructive/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Stop the card from receiving the click
+                                    handleDeleteNote(note.id, note.title);
+                                  }}
+                                  className="flex items-center gap-2 text-destructive hover:bg-destructive/10 cursor-pointer"
                                 >
                                   <Trash2 size={14} />
                                   Delete
@@ -619,7 +708,7 @@ export default function NotesListPage() {
 
                     {/* Load More Button */}
                     {/* Pagination controls */}
-                  {/* Pagination controls - Only show when NOT searching */}
+                    {/* Pagination controls - Only show when NOT searching */}
                     {!debouncedSearchQuery && (
                       <div className="col-span-full flex flex-col items-center gap-4 py-8">
                         <div className="flex items-center gap-2">
@@ -637,7 +726,7 @@ export default function NotesListPage() {
                             {(() => {
                               const total = pagedData?.total;
                               const totalPages = typeof total === 'number' && total > 0 ? Math.ceil(total / pageSize) : 0;
-                              
+
                               if (totalPages > 0) {
                                 return Array.from({ length: totalPages }).map((_, idx) => (
                                   <Button
@@ -671,8 +760,8 @@ export default function NotesListPage() {
                         </div>
 
                         <div className="text-sm text-muted-foreground">
-                           {/* Adjust text based on state */}
-                           Showing {displayedNotes.length} notes
+                          {/* Adjust text based on state */}
+                          Showing {displayedNotes.length} notes
                         </div>
                       </div>
                     )}
