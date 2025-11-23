@@ -5,9 +5,8 @@ import { AuthenticatedUser } from "../../types/authInterface";
 import { User } from "../../../modules/users/users.model";
 import { authLogger } from "../../utils/authLogger";
 import { errorHandler } from "../responseHandler";
-import { hashToken } from "../../utils/authTokenService";
-import AuthToken from "../../../modules/shared/model/auth/authToken.model";
-import { Op } from "sequelize";
+import redisClient from "apps/server/src/config/redis";
+import { redisKey } from "../../utils/redisKey";
 
 
 // Helper function to validate JWT secret
@@ -68,17 +67,17 @@ export const authUser = async (req: Request, res: Response, next: NextFunction) 
 		return;
 	}
 
-	const tokenHash = hashToken(rawToken);
-	const now = new Date();
-	const session = await AuthToken.findOne({
-		where: {
-			token_hash: tokenHash, revoked: false, expires_at: { [Op.gt]: now },
-		}
-	});
-	if (!session) {
-		errorHandler(res, "Invalid authentication token", {}, 401);
-		return;
-	}
+	// const tokenHash = hashToken(rawToken);
+	// const now = new Date();
+	// const session = await AuthToken.findOne({
+	// 	where: {
+	// 		token_hash: tokenHash, revoked: false, expires_at: { [Op.gt]: now },
+	// 	}
+	// });
+	// if (!session) {
+	// 	errorHandler(res, "Invalid authentication token", {}, 401);
+	// 	return;
+	// }
 
 	const xForwardedFor = req.headers['x-forwarded-for'];
 	const clientIP =
@@ -175,6 +174,17 @@ export const authUser = async (req: Request, res: Response, next: NextFunction) 
 			return;
 		}
 
+
+
+
+		const key = redisKey("session", decoded.userId, decoded.deviceId, decoded.jti);
+		const tokenExists = await redisClient.get(key);
+
+		if (!tokenExists) {
+			errorHandler(res, "Access token invalid or revoked", {}, 401);
+
+			return
+		}
 		// Get user from database with caching
 		const userData = await getUserById(decoded.userId);
 		if (!userData) {
@@ -207,13 +217,14 @@ export const authUser = async (req: Request, res: Response, next: NextFunction) 
 			errorHandler(res, "Token validation failed", {}, 401);
 			return;
 		}
-
 		// Attach user data to request object
 		req.user = {
 			userId: decoded.userId,
 			email: decoded.email,
 			isEmailVerified: userData.is_email_verified,
 			name: userData.name,
+			deviceId: decoded.deviceId,
+			jti: decoded.jti,
 			profileUrl: userData.profile_url,
 			iat: decoded.iat,
 			exp: decoded.exp,

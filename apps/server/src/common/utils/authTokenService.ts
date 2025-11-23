@@ -16,10 +16,11 @@ const validateJwtSecret = (): string => {
     return secret;
 };
 
-export const generateAccessToken = (user: { id: number; email: string }) => {
+export const generateAccessToken = (user: { id: number; email: string, deviceId: string, jti: string }) => {
     const secret = validateJwtSecret();
+
     return jwt.sign(
-        { userId: user.id, email: user.email },
+        { userId: user.id, email: user.email, deviceId: user.deviceId, jti: user.jti},
         secret,
         {
             expiresIn: ACCESS_TOKEN_TTL,

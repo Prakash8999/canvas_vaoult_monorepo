@@ -4,6 +4,9 @@ import { successHandler, errorHandler } from '../../common/middlewares/responseH
 import { parseError } from '../../common/utils/error.parser';
 import * as userService from './user.service';
 import { clearRefreshTokenCookie, findValidRefreshSession, generateAccessToken, revokeRefreshSession, rotateRefreshToken, setRefreshTokenCookie } from '../../common/utils/authTokenService';
+import redisClient from '../../config/redis';
+import { redisKey } from '../../common/utils/redisKey';
+import { v4 } from 'uuid';
 
 
 export const addUser = async (req: Request, res: Response) => {
@@ -151,22 +154,6 @@ export const resetPasswordWithToken = async (req: Request, res: Response) => {
 }
 
 
-export const logoutUser = async (req: Request, res: Response) => {
-	try {
-		if (!req.user) {
-			errorHandler(res, 'Unauthorized', {}, 401);
-			return;
-		}
-		await userService.logoutUserService(req.user.userId);
-		successHandler(res, 'User logged out successfully', {}, 200);
-	} catch (error) {
-		const errorParser = parseError(error);
-		errorHandler(res, "Failed to logout user", errorParser.message, errorParser.statusCode);
-	}
-}
-
-
-
 
 export const refreshTokenController = async (req: Request, res: Response) => {
 	try {
@@ -197,15 +184,25 @@ export const refreshTokenController = async (req: Request, res: Response) => {
 			return
 		}
 
+
+		await redisClient.del(redisKey("session", user.dataValues.id, req.user.deviceId, req.user.jti));
+
 		// rotate refresh token
 		const newRawRefreshToken = await rotateRefreshToken(session, req);
 		setRefreshTokenCookie(res, newRawRefreshToken);
+
+		const deviceId = v4();
+		const jti = v4();
 
 		// new access token
 		const accessToken = generateAccessToken({
 			id: user.dataValues.id,
 			email: user.dataValues.email,
+			deviceId: deviceId,
+			jti: jti
 		});
+		const redisKeyGen = redisKey("session", user.dataValues.id, deviceId, jti);
+		await redisClient.set(redisKeyGen, accessToken, { EX: 60 * 60 }); // 1 hour
 
 		successHandler(res, "Token Generated", accessToken, 200)
 	} catch (err: any) {
@@ -233,6 +230,8 @@ export const logoutController = async (req: Request, res: Response) => {
 		}
 
 		clearRefreshTokenCookie(res);
+		let redisKey = `user:token:${userId}`;
+		await redisClient.del(redisKey);
 		successHandler(res, "Logged out successfully", {}, 200)
 	} catch (err: any) {
 		console.error("Logout error:", err);
