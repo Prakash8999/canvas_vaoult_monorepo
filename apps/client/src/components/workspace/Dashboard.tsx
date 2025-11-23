@@ -27,7 +27,7 @@ import { toast } from 'sonner';
 
 export function Dashboard() {
   const navigate = useNavigate();
-  
+
   const {
     currentWorkspace,
     addToRecent,
@@ -52,7 +52,7 @@ export function Dashboard() {
   // Recent items: combine canvases and notes, sort by modified time
   const allCanvases = Object.values(canvases || {}).map((c: any) => ({
     id: c.id,
-    title: c.name,
+    title: c.title,
     updatedAt: c.modifiedAt,
     type: 'canvas'
   }));
@@ -60,7 +60,7 @@ export function Dashboard() {
   // Normalize notes and combine with canvases for a mixed recent list
   const noteItems = allNotes.map(n => ({
     id: n.id,
-    title: n.name || 'Untitled Note',
+    title: n.title || 'Untitled Note',
     updatedAt: n.modifiedAt,
     note_uid: n.note_uid,
     type: 'note'
@@ -73,7 +73,7 @@ export function Dashboard() {
   // Combine pinned notes and pinned canvases for the Pinned panel
   const pinnedNoteItems = getPinnedNotes().map(note => ({
     id: note.id,
-    title: note.name,
+    title: note.title,
     updatedAt: note.modifiedAt,
     type: 'note'
   }));
@@ -82,7 +82,7 @@ export function Dashboard() {
     .filter((c: any) => c.pinned)
     .map((c: any) => ({
       id: c.id,
-      title: c.name,
+      title: c.title,
       updatedAt: c.modifiedAt,
       type: 'canvas'
     }));
@@ -109,24 +109,24 @@ export function Dashboard() {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
   };
-    const [searchParams, setSearchParams] = useSearchParams();
-  
-    const getInitialPageIndex = () => {
-      const pageParam = searchParams.get('page');
-      const pageNum = pageParam ? parseInt(pageParam, 10) : 1;
-      return Math.max(0, pageNum - 1); // Convert to 0-based
-    };
-  
-    // Pagination state: pageIndex starts at 0
-    const [pageIndex, setPageIndex] = useState(getInitialPageIndex);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const getInitialPageIndex = () => {
+    const pageParam = searchParams.get('page');
+    const pageNum = pageParam ? parseInt(pageParam, 10) : 1;
+    return Math.max(0, pageNum - 1); // Convert to 0-based
+  };
+
+  // Pagination state: pageIndex starts at 0
+  const [pageIndex, setPageIndex] = useState(getInitialPageIndex);
   const {
     data: pagedData,
     isLoading: loading,
     error: queryError,
   } = usePaginatedNotes(pageIndex, pageSize);
-const handleCreateNote = async () => {
+  const handleCreateNote = async () => {
     // Stronger guard against concurrent execution
-    if (creatingNote || isCreating || loading ) return;
+    if (creatingNote || isCreating || loading) return;
 
     // Wait for data to load before allowing creation
     if (!pagedData) {
@@ -147,7 +147,7 @@ const handleCreateNote = async () => {
       if (!hasExistingNotes) {
         // Even if already seeded, ensure at least one note exists
         apiNote = await createNote({
-          name: "Welcome to Your Knowledge Base",
+          title: "Welcome to Your Knowledge Base",
           content: getWelcomeContent(),
         });
         localStorage.setItem(WELCOME_SEEDED_KEY, '1');
@@ -158,7 +158,7 @@ const handleCreateNote = async () => {
       else {
         // Regular note
         const noteName = `Untitled Note ${new Date().toLocaleTimeString()}`;
-        apiNote = await createNote({ name: noteName });
+        apiNote = await createNote({ title: noteName });
       }
 
       // Navigate using note_uid (API expects uuid)
@@ -209,7 +209,7 @@ const handleCreateNote = async () => {
         <motion.div variants={itemVariants} className="flex justify-center space-x-4">
           <Button
             onClick={!creatingNote && !isCreating ? handleCreateNote : undefined}
-            aria-disabled={creatingNote || isCreating }
+            aria-disabled={creatingNote || isCreating}
 
             className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary"
           >

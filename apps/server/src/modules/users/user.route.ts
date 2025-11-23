@@ -19,5 +19,6 @@ router.get('/', authUser, userController.getUserProfile);
 router.patch('/', authUser, userController.updateUserProfile);
 router.delete('/', authUser, userController.blockUser);
 router.post('/logout', authUser, userController.logoutController);
+router.post('/refresh-token', userController.refreshTokenController);
 
 export default router;
