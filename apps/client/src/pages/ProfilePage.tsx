@@ -90,6 +90,7 @@ export default function ProfilePage() {
     queryFn: async () => {
       if (!token) throw new Error('No token');
       const response = await axios.get(`${import.meta.env.VITE_BASE_URL}/api/v1/user`, {
+        withCredentials: true,
         headers: {
           'Authorization': `Bearer ${token}`
         }

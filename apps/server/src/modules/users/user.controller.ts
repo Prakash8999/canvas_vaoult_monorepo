@@ -230,8 +230,8 @@ export const logoutController = async (req: Request, res: Response) => {
 		}
 
 		clearRefreshTokenCookie(res);
-		let redisKey = `user:token:${userId}`;
-		await redisClient.del(redisKey);
+		let redisKeyGen =  redisKey("session", userId, req.user.deviceId, req.user.jti);
+		await redisClient.del(redisKeyGen);
 		successHandler(res, "Logged out successfully", {}, 200)
 	} catch (err: any) {
 		console.error("Logout error:", err);

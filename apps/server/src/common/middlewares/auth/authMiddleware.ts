@@ -5,7 +5,7 @@ import { AuthenticatedUser } from "../../types/authInterface";
 import { User } from "../../../modules/users/users.model";
 import { authLogger } from "../../utils/authLogger";
 import { errorHandler } from "../responseHandler";
-import redisClient from "apps/server/src/config/redis";
+import redisClient from "../../../config/redis";
 import { redisKey } from "../../utils/redisKey";
 
 
