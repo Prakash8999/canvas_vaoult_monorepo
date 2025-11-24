@@ -8,8 +8,27 @@ import { Op, Transaction } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { WikiLink, Note } from "../shared/model/model.relation";
 import sequelize from "../../config/database";
+import redisClient from "../../config/redis";
 
-// CRUD Operations
+
+
+// Helper: Deletes all list caches recorded in the user's tracker
+const invalidateUserCache = async (userId: number) => {
+	const trackerKey = `user:${userId}:cache_tracker`;
+	const keysToDelete = await redisClient.sMembers(trackerKey);
+
+	if (keysToDelete.length > 0) {
+		const pipeline = redisClient.multi();
+		pipeline.del(keysToDelete); // Delete the actual cached lists
+		pipeline.del(trackerKey);   // Delete the tracker itself
+		await pipeline.exec();
+		console.log(`Invalidated ${keysToDelete.length} cache keys for user ${userId}`);
+	}
+};
+
+
+
+
 
 export const createNoteService = async (data: NoteCreationAttributes, userId: number): Promise<Note> => {
 	try {
@@ -39,6 +58,7 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 				}, { transaction });
 
 				await transaction.commit();
+				await invalidateUserCache(userId);
 				return note;
 			} catch (error) {
 				await transaction.rollback();
@@ -46,6 +66,7 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 			}
 		} else {
 			const note = await Note.create(noteData);
+			await invalidateUserCache(userId);
 			return note;
 		}
 	} catch (error) {
@@ -124,6 +145,19 @@ export function buildAllTags(notes: ExtractedNote[]): AllTagEntry[] {
 
 export const getAllNotesService = async (userId: number, limit?: number, offset?: number, search?: string, isWikilink: boolean = false, isGraph: boolean = false, isPinned: boolean = false): Promise<{ notes: Note[], total: number }> => {
 	try {
+
+
+		const redisKeyGen = `notes:${userId}:${limit}:${offset || 0}:${search || ''}:${isWikilink}:${isGraph}:${isPinned}`;
+		const trackerKey = `user:${userId}:cache_tracker`;
+		const cachedNotes = await redisClient.get(redisKeyGen);
+		if (cachedNotes) {
+			console.log('Notes found in cache');
+			return JSON.parse(cachedNotes);
+		}
+
+		console.log('Notes does not found in cache');
+
+
 		const whereClause: any = { user_id: userId };
 		if (search) {
 
@@ -154,15 +188,36 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 				}]
 			}
 		] : [];
-		console.log('Searching notes with clause:', whereClause);
+
 		const { count, rows } = await Note.findAndCountAll({
 			where: whereClause,
 			order: [['updated_at', 'DESC']],
 			limit: limit || 50,
 			offset: offset || 0,
 			attributes: isWikilink ? { exclude: ['content'] } : undefined,
-			include: includeOptions
+			include: includeOptions,
+			raw: true,
+			nest: true,
 		});
+
+		// await redisClient.set(redisKeyGen, JSON.stringify({ notes: rows, total: count }), {
+		// 	EX: 60 * 60,
+		// });
+
+
+
+		const responseData = { notes: rows, total: count };
+		const pipeline = redisClient.multi();
+		pipeline.set(redisKeyGen, JSON.stringify(responseData), {
+			EX: 60 * 60,
+		});
+		pipeline.sAdd(trackerKey, redisKeyGen);
+		pipeline.expire(trackerKey, 60 * 60);
+
+		await pipeline.exec();
+
+
+
 
 		return { notes: rows, total: count };
 	} catch (error) {
@@ -173,6 +228,19 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 
 export const getNoteByIdService = async (uid: string, userId: number): Promise<Note | null> => {
 	try {
+		const cacheKey = `note:${uid}:${userId}`;
+
+		const cachedNote = await redisClient.get(cacheKey);
+		if (cachedNote) {
+			console.log('Note found in cache');
+			return JSON.parse(cachedNote);
+		}
+		console.log('Note does not found in cache');
+
+
+
+
+
 		const note = await Note.findOne({
 			where: { note_uid: uid, user_id: userId },
 			include: [
@@ -195,9 +263,15 @@ export const getNoteByIdService = async (uid: string, userId: number): Promise<N
 					}]
 				}
 			],
+			raw: true,
+			nest: true,
 		});
 
-
+		if (note) {
+			await redisClient.set(cacheKey, JSON.stringify(note), {
+				EX: 60 * 30, // Cache for 30 minutes
+			});
+		}
 		console.log('Fetched note by uid:', uid, note ? 'found' : 'not found');
 		return note;
 	} catch (error) {
@@ -257,9 +331,11 @@ export const updateNoteService = async (
 				{ transaction }
 			);
 		}
-
+		await redisClient.del(`note:${existingNote.dataValues.note_uid}:${userId}`);
+		await invalidateUserCache(userId);
 		// 6. Commit transaction
 		await transaction.commit();
+
 
 		// 7. Fetch and return updated note
 		return await Note.findByPk(id);
@@ -276,9 +352,24 @@ export const updateNoteService = async (
 
 export const deleteNoteService = async (id: number, userId: number): Promise<boolean> => {
 	try {
+    const note = await Note.findOne({
+			where: { id:id, user_id: userId },
+			raw: true,
+			attributes:['note_uid']
+		});
+		if (!note) {
+			return false
+
+		}
+
 		const deletedRows = await Note.destroy({
 			where: { id, user_id: userId }
 		});
+
+		if (deletedRows > 0) {
+			await redisClient.del(`note:${note.note_uid}:${userId}`);
+			await invalidateUserCache(userId);
+		}
 
 		return deletedRows > 0;
 	} catch (error) {

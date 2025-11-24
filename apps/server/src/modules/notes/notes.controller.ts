@@ -24,7 +24,6 @@ export const createNote = async (req: Request, res: Response) => {
 export const getAllNotes = async (req: Request, res: Response) => {
 	try {
 		const userId = req.user.userId;
-		console.log("cookies ", req.cookies.refresh_token)
 
 		// Parse pagination parameters
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
@@ -36,28 +35,28 @@ export const getAllNotes = async (req: Request, res: Response) => {
 
 		const { notes, total } = await noteService.getAllNotesService(userId, limit, offset, search, isWikilink, isGraph, isPinned);
 		// console.log('Notes retrieved:', notes);
-
+		// console.log('Notes retrieved:', notes);
 		// 1. Extract tags for each note
 		const mappedNotes = notes.map(note => {
-			const extractedTags = noteService.extractTagsFromContent(note.dataValues.content);
+			const extractedTags = noteService.extractTagsFromContent(note.content);
 
 			return {
-				id: note.dataValues.id,
-				title: note.dataValues.title,
-				content: note.dataValues.content,
+				id: note.id,
+				title: note.title,
+				content: note.content,
 				tags: extractedTags,
-				note_uid: note.dataValues.note_uid,
-				version: note.dataValues.version,
-				pinned: note.dataValues.pinned,
+				note_uid: note.note_uid,
+				version: note.version,
+				pinned: note.pinned,
 				child_wikilinks: note.child_wikilinks || [],
 				parent_wikilinks: note.parent_wikilinks || [],
-				created_at: note.dataValues.created_at,
-				updated_at: note.dataValues.updated_at,
+				created_at: note.created_at,
+				updated_at: note.updated_at,
 			};
 		});
 
 
-
+		// console.log('Mapped notes:', mappedNotes);
 		const responseData = {
 			notes: mappedNotes,
 			pagination: {
@@ -72,6 +71,7 @@ export const getAllNotes = async (req: Request, res: Response) => {
 		};
 		return successHandler(res, "Notes fetched successfully", responseData, 200);
 	} catch (error) {
+		console.log("Error fetching notes:", error);
 		const errorParser = parseError(error);
 		return errorHandler(res, "Failed to fetch notes", errorParser.message, errorParser.statusCode);
 	}
@@ -132,18 +132,18 @@ export const getNote = async (req: Request, res: Response) => {
 		if (!note) {
 			return errorHandler(res, "Note not found", {}, 404);
 		}
-		const extractedTags = noteService.extractTagsFromContent(note.dataValues.content);
+		const extractedTags = noteService.extractTagsFromContent(note.content);
 		return successHandler(res, "Note fetched successfully", {
-			id: note.dataValues.id,
-			title: note.dataValues.title,
-			userId: note.dataValues.user_id,
-			content: note.dataValues.content,
+			id: note.id,
+			title: note.title,
+			userId: note.user_id,
+			content: note.content,
 			tags: extractedTags,
-			version: note.dataValues.version,
-			note_uid: note.dataValues.note_uid,
-			pinned: note.dataValues.pinned,
-			created_at: note.dataValues.created_at,
-			updated_at: note.dataValues.updated_at,
+			version: note.version,
+			note_uid: note.note_uid,
+			pinned: note.pinned,
+			created_at: note.created_at,
+			updated_at: note.updated_at,
 			child_wikilinks: note.child_wikilinks,
 			parent_wikilinks: note.parent_wikilinks,
 
@@ -197,7 +197,6 @@ export const deleteNote = async (req: Request, res: Response) => {
 		if (!deleted) {
 			return errorHandler(res, "Note not found", {}, 404);
 		}
-
 		return successHandler(res, "Note deleted successfully", { deletedId: id }, 200);
 	} catch (error) {
 		const errorParser = parseError(error);
