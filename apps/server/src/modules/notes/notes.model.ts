@@ -65,6 +65,11 @@ export const NoteSchema = z
 			example: [1, 2, 3],
 			description: 'Array of attachment IDs linked to this note',
 		}),
+		note_type: z.enum(['note', 'canvas']).default('note').openapi({
+			example: 'note',
+			description: 'Type of the note',
+		}),
+
 		created_at: z.date().optional().openapi({
 			type: 'string',
 			format: 'date-time',
@@ -110,25 +115,25 @@ export const UpdateNoteSchema = NoteSchema.partial().omit({
 	description: 'Payload for updating an existing note',
 });
 export interface TagNoteRef {
-    note_name: string;
+	note_name: string;
 	created_at: Date;
 	updated_at: Date;
-    note_uid: string;
-    note_id: number;
+	note_uid: string;
+	note_id: number;
 }
 
 export interface AllTagEntry {
-    tag: string;
-    notes: TagNoteRef[];
+	tag: string;
+	notes: TagNoteRef[];
 }
 
 export interface ExtractedNote {
-    id: number;
-    title: string;
+	id: number;
+	title: string;
 	created_at: Date;
 	updated_at: Date;
-    note_uid: string;
-    tags: string[];
+	note_uid: string;
+	tags: string[];
 }
 
 // --------------------
@@ -155,6 +160,7 @@ export class Note
 	public is_wiki_link!: boolean;
 	public version!: number;
 	public pinned!: boolean;
+	public note_type!: 'note' | 'canvas';
 	public created_at!: Date;
 	public updated_at!: Date;
 	declare public child_wikilinks?: WikiLink[];
@@ -168,6 +174,11 @@ Note.init(
 			autoIncrement: true,
 			primaryKey: true,
 			allowNull: false,
+		},
+		note_type: {
+			type: DataTypes.ENUM('note', 'canvas'),
+			allowNull: false,
+			defaultValue: 'note',
 		},
 		note_uid: {
 			type: DataTypes.STRING,

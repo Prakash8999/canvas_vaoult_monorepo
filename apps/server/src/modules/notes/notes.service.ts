@@ -36,6 +36,7 @@ export const createNoteService = async (data: NoteCreationAttributes, userId: nu
 		const noteData = {
 			...data,
 			user_id: userId,
+			note_type: 'note' as 'note',
 			version: 1,
 			note_uid,
 			created_at: new Date(),
@@ -158,7 +159,7 @@ export const getAllNotesService = async (userId: number, limit?: number, offset?
 		console.log('Notes does not found in cache');
 
 
-		const whereClause: any = { user_id: userId };
+		const whereClause: any = { user_id: userId, note_type: 'note' };
 		if (search) {
 
 			whereClause.title = isWikilink
@@ -242,7 +243,7 @@ export const getNoteByIdService = async (uid: string, userId: number): Promise<N
 
 
 		const note = await Note.findOne({
-			where: { note_uid: uid, user_id: userId },
+			where: { note_uid: uid, user_id: userId, note_type: 'note' },
 			include: [
 				{
 					model: WikiLink,
@@ -290,7 +291,7 @@ export const updateNoteService = async (
 	try {
 		// 1. Check note ownership
 		const existingNote = await Note.findOne({
-			where: { id, user_id: userId },
+			where: { id, user_id: userId, note_type: 'note' },
 			transaction,
 		});
 
@@ -352,10 +353,10 @@ export const updateNoteService = async (
 
 export const deleteNoteService = async (id: number, userId: number): Promise<boolean> => {
 	try {
-    const note = await Note.findOne({
-			where: { id:id, user_id: userId },
+		const note = await Note.findOne({
+			where: { id: id, user_id: userId, note_type: 'note' },
 			raw: true,
-			attributes:['note_uid']
+			attributes: ['note_uid']
 		});
 		if (!note) {
 			return false

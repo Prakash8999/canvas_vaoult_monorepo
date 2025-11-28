@@ -14,13 +14,6 @@ export type NoteRecord = {
   meta?: Record<string, any>;
 };
 
-export type CanvasRecord = {
-  id: string;
-  data: any; // Excalidraw/Canvas JSON
-  updatedAt: string;
-  meta?: Record<string, any>;
-};
-
 export type OutboxEvent = {
   id: string; // uuid
   type: 'note.create' | 'note.update' | 'note.patch' | 'note.delete' | 'version.save' | 'canvas.update' | 'attachment.upload';
@@ -39,7 +32,6 @@ export type MetaRecord = {
 // Dexie DB schema
 class CanvasVaultDB extends Dexie {
   notes!: Table<NoteRecord>;
-  canvases!: Table<CanvasRecord>;
   outbox!: Table<OutboxEvent>;
   meta!: Table<MetaRecord>;
 
@@ -47,7 +39,6 @@ class CanvasVaultDB extends Dexie {
     super('canvasvault_db');
     this.version(1).stores({
       notes: 'id, updatedAt, version',
-      canvases: 'id, updatedAt',
       outbox: 'id, createdAt, type',
       meta: 'key',
     });
