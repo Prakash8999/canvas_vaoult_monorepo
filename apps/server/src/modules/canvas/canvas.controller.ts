@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { errorHandler, successHandler } from "../../common/middlewares/responseHandler";
 import { parseError } from "../../common/utils/error.parser";
 import * as canvasService from "./canvas.service";
+import { CanvasQueryAttributes } from "./canvas.model";
 
 // CRUD Operations
 
@@ -25,15 +26,9 @@ export const getAllCanvases = async (req: Request, res: Response) => {
     try {
         const userId = req.user.userId;
 
-        // Build filters from query parameters
-        const filters: canvasService.CanvasFilters = {
-            page: req.query.page ? parseInt(req.query.page as string) : 1,
-            limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
-            search: req.query.search as string | undefined,
-            pinned: req.query.isPinned === 'true' ? true : undefined,
-            id: req.query.id ? parseInt(req.query.id as string) : undefined,
-            canvas_uid: req.query.canvas_uid as string | undefined,
-            note_id: req.query.note_id ? parseInt(req.query.note_id as string) : undefined,
+        // Query params are already validated and typed by validateQuery middleware
+        const filters: CanvasQueryAttributes = {
+            ...req.query,
         };
 
         const result = await canvasService.getAllCanvasesService(userId, filters);
@@ -60,7 +55,8 @@ export const getAllCanvases = async (req: Request, res: Response) => {
 export const getCanvas = async (req: Request, res: Response) => {
     try {
         const userId = req.user.userId;
-        const uid = req.params.uid;
+        // Params are already validated by validateParams middleware
+        const { uid } = req.params;
         console.log('Fetching canvas with uid:', uid, 'for userId:', userId);
 
         const canvas = await canvasService.getCanvasByUidService(uid, userId);
@@ -92,14 +88,11 @@ export const getCanvas = async (req: Request, res: Response) => {
 export const updateCanvas = async (req: Request, res: Response) => {
     try {
         const userId = req.user.userId;
-        const id = parseInt(req.params.id);
-
-        if (isNaN(id)) {
-            return errorHandler(res, "Invalid canvas ID", {}, 400);
-        }
+        // Params are already validated and coerced to number by validateParams middleware
+        const { id } = req.params;
 
         console.log("Updating canvas body:", req.body);
-        const canvas = await canvasService.updateCanvasService(id, req.body, userId);
+        const canvas = await canvasService.updateCanvasService(Number(id), req.body, userId);
 
         if (!canvas) {
             return errorHandler(res, "Canvas not found", {}, 404);
@@ -128,19 +121,16 @@ export const updateCanvas = async (req: Request, res: Response) => {
 export const deleteCanvas = async (req: Request, res: Response) => {
     try {
         const userId = req.user.userId;
-        const id = parseInt(req.params.id);
+        // Params are already validated and coerced to number by validateParams middleware
+        const { id } = req.params;
 
-        if (isNaN(id)) {
-            return errorHandler(res, "Invalid canvas ID", {}, 400);
-        }
-
-        const deleted = await canvasService.deleteCanvasService(id, userId);
+        const deleted = await canvasService.deleteCanvasService(Number(id), userId);
 
         if (!deleted) {
             return errorHandler(res, "Canvas not found", {}, 404);
         }
 
-        return successHandler(res, "Canvas deleted successfully", { deletedId: id }, 200);
+        return successHandler(res, "Canvas deleted successfully", { deletedId: Number(id) }, 200);
     } catch (error) {
         const errorParser = parseError(error);
         return errorHandler(res, "Failed to delete canvas", errorParser.message, errorParser.statusCode);

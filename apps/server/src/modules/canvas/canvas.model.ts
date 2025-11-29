@@ -88,12 +88,77 @@ export const UpdateCanvasSchema = CanvasSchema.partial().omit({
     description: 'Payload for updating an existing canvas',
 });
 
+export const GetCanvasQuerySchema = z.object({
+    // Reuse fields from CanvasSchema with query-specific transformations
+    id: CanvasSchema.shape.id.optional(),
+    canvas_uid: CanvasSchema.shape.canvas_uid.optional(),
+    note_id: z.coerce.number().int().positive().optional().openapi({
+        example: 1,
+        description: 'Filter by associated note ID',
+    }),
+    title: CanvasSchema.shape.title.optional(),
+    pinned: z.enum(['true', 'false']).transform(val => val === 'true').optional().openapi({
+        example: 'true',
+        description: 'Filter by pinned status (true/false)',
+    }),
+    search: z.string().optional().openapi({
+        example: 'canvas',
+        description: 'Search across canvas titles (partial match)',
+    }),
+    page: z.coerce.number().int().positive().default(1).optional().openapi({
+        example: 1,
+        description: 'Page number for pagination',
+    }),
+    limit: z.coerce.number().int().positive().max(100).default(10).optional().openapi({
+        example: 10,
+        description: 'Number of items per page (max 100)',
+    }),
+    sort: z.enum(['asc', 'desc']).optional().openapi({
+        example: 'asc',
+        description: 'Sort order (asc/desc)',
+    }),
+    sort_by: z.enum(['created_at', 'updated_at']).optional().openapi({
+        example: 'created_at',
+        description: 'Sort by (created_at/updated_at)',
+    }),
+    created_at: z.date().optional().openapi({
+        example: '2022-01-01T00:00:00.000Z',
+        description: 'Filter by created_at date',
+    }),
+    updated_at: z.date().optional().openapi({
+        example: '2022-01-01T00:00:00.000Z',
+        description: 'Filter by updated_at date',
+    }),
+}).openapi({
+    title: 'GetCanvasQueryParams',
+    description: 'Query parameters for filtering and paginating canvases',
+});
+
+// Params validation schemas
+export const GetCanvasByUidParamsSchema = z.object({
+    uid: CanvasSchema.shape.canvas_uid,
+}).openapi({
+    title: 'GetCanvasByUidParams',
+    description: 'URL params for getting a canvas by UID',
+});
+
+export const CanvasIdParamsSchema = z.object({
+    id: z.string().regex(/^\d+$/, 'ID must be a positive integer').openapi({
+        example: '1',
+        description: 'Canvas ID (numeric string)',
+    }),
+}).openapi({
+    title: 'CanvasIdParams',
+    description: 'URL params for canvas ID-based operations',
+});
+
 // --------------------
 // 🧩 Types
 // --------------------
 export type CanvasAttributes = z.infer<typeof CanvasSchema>;
 export type CanvasCreationAttributes = z.infer<typeof CreateCanvasSchema>;
 export type CanvasUpdateAttributes = z.infer<typeof UpdateCanvasSchema>;
+export type CanvasQueryAttributes = z.infer<typeof GetCanvasQuerySchema>;
 
 // --------------------
 // 🧩 Sequelize Model

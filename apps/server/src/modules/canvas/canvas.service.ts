@@ -1,4 +1,4 @@
-import { CanvasCreationAttributes, CanvasUpdateAttributes } from "./canvas.model";
+import { CanvasCreationAttributes, CanvasQueryAttributes, CanvasUpdateAttributes } from "./canvas.model";
 import { Op, Transaction } from 'sequelize';
 import { v4 as uuidv4 } from 'uuid';
 import { Canvas, Note } from "../shared/model/model.relation";
@@ -19,22 +19,6 @@ const invalidateUserCache = async (userId: number) => {
         console.log(`Invalidated ${keysToDelete.length} canvas cache keys for user ${userId}`);
     }
 };
-
-// Filter interface based on Canvas model fields
-export interface CanvasFilters {
-    id?: number;
-    canvas_uid?: string;
-    note_id?: number | null;
-    title?: string; // Will use ILIKE for partial match
-    pinned?: boolean;
-    created_at?: Date;
-    updated_at?: Date;
-    // Pagination & search
-    search?: string; // Special: searches across title
-    page?: number;
-    limit?: number;
-}
-
 export const createCanvasService = async (data: CanvasCreationAttributes, userId: number): Promise<Canvas> => {
     const transaction: Transaction = await sequelize.transaction();
 
@@ -76,7 +60,7 @@ export const createCanvasService = async (data: CanvasCreationAttributes, userId
 
 export const getAllCanvasesService = async (
     userId: number,
-    filters: CanvasFilters = {}
+    filters: CanvasQueryAttributes = {}
 ): Promise<{ data: Canvas[], meta: any }> => {
     try {
         const {
