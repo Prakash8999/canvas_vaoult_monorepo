@@ -20,12 +20,13 @@ import { IconSearchModal } from '@/components/canvas/IconSearchModal';
 import { EditorJSEditor } from '@/components/editor/EditorJSEditor';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useCanvas, useUpdateCanvas, useDeleteCanvas } from '@/hooks/useCanvas';
-import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"; // Ensure correct import path based on your version
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { UpdateCanvasDto } from '@/lib/api/canvasApi';
+// ✅ IMPORT THIS HELPER
+import { getSceneVersion } from "@excalidraw/excalidraw";
 
 type CanvasSection = 'document' | 'both' | 'canvas';
 
-// ✅ FIXED: Defined outside the component to prevent re-creation on every render
 const MemoizedSidebar = memo(Sidebar);
 
 const CanvasPage = () => {
@@ -37,51 +38,72 @@ const CanvasPage = () => {
 	const { data: canvas, isLoading, isError, error } = useCanvas(canvasUid || '');
 
 	// 2. Local State for "Initial Load"
-	// We store data here to pass it to components ONLY ONCE when the canvas ID changes.
-	// This prevents the "Echo Loop" where the DB update triggers a re-render which triggers Excalidraw update.
 	const [initialCanvasData, setInitialCanvasData] = useState<ExcalidrawElement[] | null>(null);
 	const [initialViewport, setInitialViewport] = useState<any>(null);
 
-	// Track the last loaded ID to know when to reset the initial data
+	const isDataReady = !isLoading && canvas && (
+		!canvas.canvas_data || // canvas is empty on server
+		canvas.canvas_data.length === 0 || // canvas is empty on server
+		(initialCanvasData && initialCanvasData.length > 0) // or we have loaded it
+	);
+	// Refs to track state
 	const lastLoadedIdRef = useRef<number | null>(null);
-
-	useEffect(() => {
-		if (!canvas) return;
-
-		// Only load data into the canvas ONCE per canvas ID
-		if (lastLoadedIdRef.current === canvas.id) return;
-
-		lastLoadedIdRef.current = canvas.id;
-		setInitialCanvasData(canvas.canvas_data || []);
-		setInitialViewport(canvas.viewport);
-	}, [canvas?.id]);
-
-	// 3. Create a Ref to hold the latest canvas object for event handlers
-	// This allows us to read the latest ID inside timeouts without adding 'canvas' to dependency arrays
 	const canvasRef = useRef(canvas);
+	// ✅ NEW: Track the "Version" of the saved data to prevent false "Unsaved" states
+	const lastSavedVersionRef = useRef<number>(0);
+
 	useEffect(() => {
 		canvasRef.current = canvas;
 	}, [canvas]);
 
+	// Initialize Data on Load
+	useEffect(() => {
+		if (!canvas) return;
+
+		const isNewCanvas = lastLoadedIdRef.current !== canvas.id;
+		const hasDataNow = canvas.canvas_data && canvas.canvas_data.length > 0;
+		const dataNotLoaded = !initialCanvasData || initialCanvasData.length === 0;
+
+		if (isNewCanvas || (hasDataNow && dataNotLoaded)) {
+			lastLoadedIdRef.current = canvas.id;
+			const data = canvas.canvas_data ? [...canvas.canvas_data] : [];
+			setInitialCanvasData(data);
+			setInitialViewport(canvas.viewport);
+			// Set initial version so we don't immediately think we are "dirty"
+			lastSavedVersionRef.current = getSceneVersion(data);
+		}
+	}, [canvas, initialCanvasData]);
+
 	// ============================================================================
-	// ✅ SAVE LOGIC (12s Auto-Save + Manual)
+	// ✅ SAVE LOGIC
 	// ============================================================================
 
 	const [isUnsaved, setIsUnsaved] = useState(false);
 	const [isSaving, setIsSaving] = useState(false);
 
-	// Accumulated changes waiting to be sent to DB
 	const pendingChangesRef = useRef<Partial<UpdateCanvasDto>>({});
-
-	// Timer ID
 	const autoSaveTimerRef = useRef<number | null>(null);
 
-	// Mutation
 	const updateMutation = useUpdateCanvas({
-		onSuccess: () => {
+		onSuccess: (_, variables) => {
 			setIsSaving(false);
 			setIsUnsaved(false);
-			pendingChangesRef.current = {}; // Clear pending changes after success
+
+			// ✅ FIX PARTIAL SAVE BUG: Only clear the keys we actually saved.
+			// If we just saved 'pinned', DO NOT clear 'canvas_data' from pendingChangesRef.
+			const savedKeys = Object.keys(variables.data);
+			const currentPending = { ...pendingChangesRef.current };
+
+			savedKeys.forEach((key) => {
+				delete currentPending[key as keyof UpdateCanvasDto];
+			});
+
+			pendingChangesRef.current = currentPending;
+
+			// Update version ref ONLY if we saved canvas data
+			if (variables.data.canvas_data) {
+				lastSavedVersionRef.current = getSceneVersion(variables.data.canvas_data);
+			}
 		},
 		onError: (error) => {
 			console.error("Save failed:", error);
@@ -90,44 +112,41 @@ const CanvasPage = () => {
 		},
 	});
 
-	/**
-	 * Trigger the actual API call. 
-	 * Called by Manual Button click OR the Auto-Save Timer.
-	 */
 	const triggerSave = useCallback(() => {
 		const currentCanvas = canvasRef.current;
 		const changes = pendingChangesRef.current;
 
-		// Validations
 		if (!currentCanvas?.id) return;
-		if (Object.keys(changes).length === 0) return; // Nothing to save
+		if (Object.keys(changes).length === 0) return;
 
 		setIsSaving(true);
 
+		// Ensure viewport is included if not explicitly changed
+		const payload = { ...changes };
+		if (!payload.viewport && currentCanvas.viewport) {
+			payload.viewport = currentCanvas.viewport;
+		}
+
 		updateMutation.mutate({
 			id: currentCanvas.id,
-			data: changes,
+			data: payload,
 		});
 
-		// Clear timer if this was triggered manually
 		if (autoSaveTimerRef.current) {
 			window.clearTimeout(autoSaveTimerRef.current);
 			autoSaveTimerRef.current = null;
 		}
 	}, [updateMutation]);
 
-	/**
-	 * Schedule an auto-save in 12 seconds.
-	 * Resets the timer if called again (debounce).
-	 */
-	const scheduleAutoSave = useCallback(() => {
-		setIsUnsaved(true);
+	const scheduleAutoSave = useCallback((silent = false) => {
+		// Only mark UI as "Unsaved" (Blue button) if it's NOT a silent update (like viewport)
+		if (!silent) setIsUnsaved(true);
 
 		if (autoSaveTimerRef.current) {
 			window.clearTimeout(autoSaveTimerRef.current);
 		}
 
-		// 12 Seconds Delay
+		// 12 Seconds Timer
 		autoSaveTimerRef.current = window.setTimeout(() => {
 			triggerSave();
 		}, 12000);
@@ -137,58 +156,52 @@ const CanvasPage = () => {
 	// HANDLERS
 	// ============================================================================
 
-	// Canvas Changes
-	const handleCanvasChange = useCallback((elements: readonly unknown[], appState: unknown) => {
+	// ✅ FIXED: Intelligent Change Handler
+	const handleCanvasChange = useCallback((elements: readonly unknown[], appState: any) => {
 		if (elements && Array.isArray(elements)) {
-			// UI Updates (Transition for smoothness)
-			const selected = elements.filter((el: any) => el?.isSelected === true);
-			startTransition(() => {
-				setElementCount(elements.length);
-				setSelectedElements(selected);
-			});
+			const typedElements = elements as ExcalidrawElement[];
 
-			// Update Pending Data
-			pendingChangesRef.current = {
-				...pendingChangesRef.current,
-				canvas_data: elements as ExcalidrawElement[]
-			};
-			scheduleAutoSave();
-		}
+			// 1. Check Scene Version: Did something ACTUALLY change?
+			// (Filters out selection changes, hover, etc.)
+			const currentVersion = getSceneVersion(typedElements);
 
-		// Update Zoom state (optional: add to pendingChanges if you want to save zoom)
-		if (appState && typeof appState === 'object' && 'zoom' in appState) {
-			const newZoom = (appState as any).zoom?.value;
-			if (newZoom) {
-				setZoomLevel(prev => (prev !== newZoom ? newZoom : prev));
+			if (currentVersion !== lastSavedVersionRef.current) {
+				// UI Updates
+				const selected = elements.filter((el: any) => el?.isSelected === true);
+				startTransition(() => {
+					setElementCount(elements.length);
+					setSelectedElements(selected);
+				});
+
+				// Update Pending Data
+				const currentZoom = typeof appState.zoom === 'object' ? appState.zoom.value : appState.zoom;
+				pendingChangesRef.current = {
+					...pendingChangesRef.current,
+					canvas_data: typedElements,
+					viewport: {
+						scrollX: appState.scrollX,
+						scrollY: appState.scrollY,
+						zoom: currentZoom || 1
+					}
+				};
+
+				// Trigger "Loud" AutoSave (enables Blue Button)
+				scheduleAutoSave(false);
 			}
 		}
+
+		// Handle Zoom changes silently
+		if (appState?.zoom) {
+			const newZoom = typeof appState.zoom === 'object' ? appState.zoom.value : appState.zoom;
+			if (newZoom) setZoomLevel(prev => (prev !== newZoom ? newZoom : prev));
+		}
 	}, [scheduleAutoSave]);
 
-	// Document (EditorJS) Changes
-	const handleDocumentChange = useCallback((data: OutputData) => {
-		pendingChangesRef.current = {
-			...pendingChangesRef.current,
-			document_data: data
-		};
-		scheduleAutoSave();
-	}, [scheduleAutoSave]);
-
-	// Title Changes
-	const handleTitleChange = useCallback((newTitle: string) => {
-		setLocalTitle(newTitle);
-		pendingChangesRef.current = {
-			...pendingChangesRef.current,
-			title: newTitle
-		};
-		scheduleAutoSave();
-	}, [scheduleAutoSave]);
-
-	// Viewport Changes
+	// ✅ FIXED: Viewport changes trigger SILENT auto-save
 	const handleViewportChange = useCallback((vp: { scrollX?: number; scrollY?: number; zoom?: number }) => {
 		const currentCanvas = canvasRef.current;
-		if (!currentCanvas || !vp) return;
+		if (!currentCanvas) return;
 
-		// Loop Prevention: Don't save if viewport barely changed
 		const currentVp = currentCanvas.viewport;
 		if (currentVp) {
 			const isSame =
@@ -202,22 +215,36 @@ const CanvasPage = () => {
 			...pendingChangesRef.current,
 			viewport: vp
 		};
-		scheduleAutoSave();
+		// Silent = true (Don't turn button blue, but do save eventually)
+		scheduleAutoSave(true);
 	}, [scheduleAutoSave]);
 
-	// Pinning (Immediate Save)
+	const handleDocumentChange = useCallback((data: OutputData) => {
+		pendingChangesRef.current = {
+			...pendingChangesRef.current,
+			document_data: data
+		};
+		scheduleAutoSave(false);
+	}, [scheduleAutoSave]);
+
+	const handleTitleChange = useCallback((newTitle: string) => {
+		setLocalTitle(newTitle);
+		pendingChangesRef.current = {
+			...pendingChangesRef.current,
+			title: newTitle
+		};
+		scheduleAutoSave(false);
+	}, [scheduleAutoSave]);
+
 	const handleTogglePin = useCallback(() => {
 		const currentCanvas = canvasRef.current;
 		if (!currentCanvas) return;
-
-		// Pinning is usually an immediate action, not batched
 		updateMutation.mutate({
 			id: currentCanvas.id,
 			data: { pinned: !currentCanvas.pinned },
 		});
 	}, [updateMutation]);
 
-	// Deletion
 	const deleteMutation = useDeleteCanvas({
 		onSuccess: () => {
 			toast.success('Canvas deleted successfully');
@@ -253,13 +280,12 @@ const CanvasPage = () => {
 		if (canvas?.title && !editingName) setLocalTitle(canvas.title);
 	}, [canvas?.title, editingName]);
 
-	// Keyboard Shortcuts
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if ((e.metaKey || e.ctrlKey) && e.key === 'p') { e.preventDefault(); setIsPropertiesPanelOpen(v => !v); }
 			if ((e.metaKey || e.ctrlKey) && e.key === 'g') { e.preventDefault(); setIsGridVisible(v => !v); }
 			if ((e.metaKey || e.ctrlKey) && e.key === 'i') { e.preventDefault(); setShowIconModal(true); }
-			if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); triggerSave(); } // Ctrl+S to save
+			if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); triggerSave(); }
 			if (e.key === 'Escape') navigate('/canvases');
 		};
 		window.addEventListener('keydown', handleKeyDown);
@@ -280,17 +306,11 @@ const CanvasPage = () => {
 		{ key: 'canvas', label: 'Canvas', icon: Brush },
 	] as const;
 
-	// ============================================================================
-	// RENDER CONTENT
-	// ============================================================================
 	const renderContent = () => {
-		if (isLoading) {
+		if (!isDataReady) {
 			return (
-				<div className="h-full w-full bg-white rounded-2xl shadow-lg p-8 flex items-center justify-center">
-					<div className="text-center space-y-4">
-						<Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-						<p className="text-muted-foreground">Loading canvas...</p>
-					</div>
+				<div className="h-full w-full flex items-center justify-center">
+					<Loader2 className="h-8 w-8 animate-spin text-gray-400" />
 				</div>
 			);
 		}
@@ -307,7 +327,6 @@ const CanvasPage = () => {
 			);
 		}
 
-		// Use INITIAL data, not live data, to pass to Canvas
 		const safeCanvasData = initialCanvasData || [];
 
 		switch (activeSection) {
@@ -345,7 +364,6 @@ const CanvasPage = () => {
 			default:
 				return (
 					<div className="h-full w-full flex bg-gray-100 rounded-2xl shadow-lg overflow-hidden border border-gray-200">
-						{/* LEFT: Editor */}
 						<div className="flex-1 bg-white flex flex-col items-start p-4 border-r border-gray-200 min-w-[350px] overflow-y-auto">
 							<div className="w-full max-w-xl">
 								<EditorJSEditor
@@ -358,9 +376,7 @@ const CanvasPage = () => {
 								/>
 							</div>
 						</div>
-						{/* Divider */}
 						<div className="w-[2px] bg-gray-100" />
-						{/* RIGHT: Canvas */}
 						<div className="flex-1 bg-gray-50 flex flex-col justify-center items-center p-4 min-w-[350px] relative">
 							<div className="w-full h-full max-w-3xl flex">
 								<Canvas
@@ -381,20 +397,15 @@ const CanvasPage = () => {
 		<div className={`h-screen bg-workspace-bg flex flex-col overflow-hidden ${fullscreen ? 'z-[9999]' : ''}`}>
 			{!fullscreen && <Header />}
 			<div className={`flex-1 flex overflow-hidden ${fullscreen ? 'h-screen' : ''}`}>
-				{/* ✅ FIXED: MemoizedSidebar is now defined */}
 				{!fullscreen && <MemoizedSidebar />}
-
 				<div className="flex-1 flex flex-col relative">
-					{/* Header Controls */}
 					<motion.div
 						initial={{ y: -10, opacity: 0 }}
 						animate={{ y: 0, opacity: 1 }}
 						className="bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-2 shadow-sm z-30 relative"
 					>
 						<div className="flex items-center justify-between gap-2">
-							{/* Left: Title & Status */}
 							<div className="flex items-center gap-2">
-								{/* Save Status Indicator */}
 								<div className="flex items-center gap-2 mr-2">
 									{isSaving ? (
 										<Loader2 className="h-4 w-4 text-blue-500 animate-spin" />
@@ -443,7 +454,6 @@ const CanvasPage = () => {
 								</div>
 							</div>
 
-							{/* Center: Tabs */}
 							<div className="flex-1 flex justify-center">
 								<div className="flex bg-gray-100 rounded-full shadow-inner px-1 py-1 gap-1">
 									{sections.map((section) => (
@@ -460,9 +470,7 @@ const CanvasPage = () => {
 								</div>
 							</div>
 
-							{/* Right: Tools & Save */}
 							<div className="flex items-center gap-2">
-								{/* Manual Save Button */}
 								<Button
 									size="sm"
 									variant={isUnsaved ? "default" : "ghost"}
@@ -485,7 +493,6 @@ const CanvasPage = () => {
 						</div>
 					</motion.div>
 
-					{/* Content */}
 					<motion.div
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}

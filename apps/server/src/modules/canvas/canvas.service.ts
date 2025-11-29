@@ -159,7 +159,7 @@ export const getCanvasByUidService = async (uid: string, userId: number): Promis
                     attributes: ['id', 'title', 'note_uid', 'content', 'created_at', 'updated_at']
                 }
             ],
-            raw: false,
+            raw: true,
             nest: true,
         });
 
@@ -246,7 +246,9 @@ export const updateCanvasService = async (
                     as: 'note',
                     attributes: ['id', 'title', 'note_uid', 'content', 'created_at', 'updated_at']
                 }
-            ]
+            ],
+            raw: true,
+            nest: true,
         });
 
     } catch (error) {
