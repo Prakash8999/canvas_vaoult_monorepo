@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
+import { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 
 /**
  * NOTE: Passing a fresh `initialData` object on every render causes Excalidraw to reinitialize
@@ -8,18 +9,17 @@ import "@excalidraw/excalidraw/index.css";
  * We capture the initial data once, then for subsequent external data changes we update the scene via the API.
  */
 interface CanvasProps {
-  data?: any[]; // array of excalidraw elements
-  onChange?: (elements: readonly any[], appState: any) => void;
-  // optional viewport to restore (scrollX, scrollY, zoom)
+  // Replace 'any[]' with 'ExcalidrawElement[]'
+  data?: ExcalidrawElement[];
+  onChange?: (elements: readonly ExcalidrawElement[], appState: any) => void;
   viewport?: { scrollX?: number; scrollY?: number; zoom?: number } | null;
-  // notify parent about viewport changes
   onViewportChange?: (viewport: { scrollX?: number; scrollY?: number; zoom?: number }) => void;
 }
 
 const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => {
-  const initialElementsRef = useRef<any[] | null>(null);
+  const initialElementsRef = useRef<ExcalidrawElement[] | null>(null);
   const [api, setApi] = useState<any>(null);
-  const lastPushedElementsRef = useRef<any[] | null>(null);
+  const lastPushedElementsRef = useRef<ExcalidrawElement[] | null>(null);
   // Flag to indicate an update originated from inside Excalidraw (user action)
   const internalChangeRef = useRef(false);
 
@@ -46,8 +46,8 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
 
     const prev = lastPushedElementsRef.current;
     let shouldUpdate = false;
-    if (!prev) shouldUpdate = true; 
-    else if (prev.length !== data.length) shouldUpdate = true; 
+    if (!prev) shouldUpdate = true;
+    else if (prev.length !== data.length) shouldUpdate = true;
     else {
       // cheap shallow compare on ids & version if present
       for (let i = 0; i < data.length; i++) {
@@ -84,7 +84,7 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
       }
     }
   }, [viewport]);
-  
+
   // watch for API and app state changes to notify parent about viewport updates
   useEffect(() => {
     if (!api) return;
