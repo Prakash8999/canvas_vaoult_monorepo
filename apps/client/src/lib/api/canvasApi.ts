@@ -114,7 +114,7 @@ export const fetchCanvasList = async (
     if (filters?.note_id) params.append('note_id', filters.note_id.toString());
 
     const response = await httpClient.get<{ data: CanvasListResponse }>(
-        `/canvases?${params.toString()}`
+        `/api/v1/canvas?${params.toString()}`
     );
 
     return response.data.data;
@@ -124,7 +124,7 @@ export const fetchCanvasList = async (
  * Fetch a single canvas by UID
  */
 export const fetchCanvasByUid = async (uid: string): Promise<Canvas> => {
-    const response = await httpClient.get<{ data: Canvas }>(`/canvases/${uid}`);
+    const response = await httpClient.get<{ data: Canvas }>(`/api/v1/canvas/${uid}`);
     return response.data.data;
 };
 
@@ -132,7 +132,7 @@ export const fetchCanvasByUid = async (uid: string): Promise<Canvas> => {
  * Create a new canvas
  */
 export const createCanvas = async (payload: CreateCanvasDto): Promise<Canvas> => {
-    const response = await httpClient.post<{ data: Canvas }>('/canvases', payload);
+    const response = await httpClient.post<{ data: Canvas }>('/api/v1/canvas', payload);
     return response.data.data;
 };
 
@@ -143,8 +143,8 @@ export const updateCanvas = async (
     id: number,
     payload: UpdateCanvasDto
 ): Promise<Canvas> => {
-    const response = await httpClient.put<{ data: Canvas }>(
-        `/canvases/${id}`,
+    const response = await httpClient.patch<{ data: Canvas }>(
+        `/api/v1/canvas/${id}`,
         payload
     );
     return response.data.data;
@@ -155,7 +155,7 @@ export const updateCanvas = async (
  */
 export const deleteCanvas = async (id: number): Promise<{ deletedId: number }> => {
     const response = await httpClient.delete<{ data: { deletedId: number } }>(
-        `/canvases/${id}`
+        `/api/v1/canvas/${id}`
     );
     return response.data.data;
 };

@@ -1,11 +1,12 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_BASE_URL || 'http://localhost:3000';
 
 // Create axios instance with base configuration
 const httpClient: AxiosInstance = axios.create({
     baseURL: API_BASE_URL,
     timeout: 30000,
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -14,7 +15,7 @@ const httpClient: AxiosInstance = axios.create({
 // Request interceptor - Add auth token
 httpClient.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-        const token = localStorage.getItem('access_token');
+        const token = localStorage.getItem('auth_token');
         if (token && config.headers) {
             config.headers.Authorization = `Bearer ${token}`;
         }
@@ -26,23 +27,23 @@ httpClient.interceptors.request.use(
 );
 
 // Response interceptor - Handle errors globally
-httpClient.interceptors.response.use(
-    (response) => response,
-    async (error: AxiosError) => {
-        if (error.response?.status === 401) {
-            // Token expired or invalid - redirect to login
-            localStorage.removeItem('access_token');
-            window.location.href = '/login';
-        }
+// httpClient.interceptors.response.use(
+//     (response) => response,
+//     async (error: AxiosError) => {
+//         if (error.response?.status === 401) {
+//             // Token expired or invalid - redirect to login
+//             localStorage.removeItem('auth_token');
+//             window.location.href = '/';
+//         }
 
-        // Transform error for consistent handling
-        const errorMessage =
-            (error.response?.data as { message?: string })?.message ||
-            error.message ||
-            'An unexpected error occurred';
+//         // Transform error for consistent handling
+//         const errorMessage =
+//             (error.response?.data as { message?: string })?.message ||
+//             error.message ||
+//             'An unexpected error occurred';
 
-        return Promise.reject(new Error(errorMessage));
-    }
-);
+//         return Promise.reject(new Error(errorMessage));
+//     }
+// );
 
 export default httpClient;

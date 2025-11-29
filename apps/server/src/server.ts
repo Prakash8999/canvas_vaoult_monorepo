@@ -25,6 +25,7 @@ app.use(cors({ origin: ['http://localhost:8080'], methods: ['GET', 'POST', 'PATC
 import userRoutes from './modules/users/user.route';
 import assetRoutes from './modules/assets/asset.route';
 import noteRoutes from './modules/notes/notes.route';
+import canvasRoute from './modules/canvas/canvas.routes'
 
 // Use routes
 
@@ -58,6 +59,7 @@ const apiV1 = '/api/v1'
 app.use(`${apiV1}/user`, userRoutes);
 app.use(`${apiV1}/assets`, assetRoutes);
 app.use(`${apiV1}/note`, noteRoutes);
+app.use(`${apiV1}/canvas`, canvasRoute)
 
 app.listen(port, host, () => {
   console.log(`[ ready ] http://${host}:${port}`);
