@@ -152,15 +152,15 @@ export const useUpdateCanvas = (
     options?: UseMutationOptions<
         Canvas,
         Error,
-        { id: number; data: UpdateCanvasDto },
+        { id: number; uid?: string; data: UpdateCanvasDto },
         { previousList?: CanvasListResponse; previousDetail?: Canvas; canvasUid?: string } // <--- Context Type
     >
 ) => {
     const queryClient = useQueryClient();
 
-    return useMutation<Canvas, Error, { id: number; data: UpdateCanvasDto }, { previousList?: CanvasListResponse; previousDetail?: Canvas; canvasUid?: string }>({
+    return useMutation<Canvas, Error, { id: number; uid?: string; data: UpdateCanvasDto }, { previousList?: CanvasListResponse; previousDetail?: Canvas; canvasUid?: string }>({
         mutationFn: ({ id, data }) => updateCanvas(id, data),
-        onMutate: async ({ id, data }) => {
+        onMutate: async ({ id, uid, data }) => {
             // Cancel outgoing refetches
             await queryClient.cancelQueries({ queryKey: canvasKeys.all });
 
@@ -169,10 +169,16 @@ export const useUpdateCanvas = (
                 canvasKeys.list()
             );
 
-            // Find canvas UID for detail cache
-            const canvasInList = previousList?.canvases.find((c) => c.id === id);
-            const previousDetail = canvasInList
-                ? queryClient.getQueryData<Canvas>(canvasKeys.detail(canvasInList.canvas_uid))
+            // Determine UID: use provided uid or try to find it in the list
+            let targetUid = uid;
+            if (!targetUid && previousList) {
+                const canvasInList = previousList.canvases.find((c) => c.id === id);
+                targetUid = canvasInList?.canvas_uid;
+            }
+
+            // Get previous detail if we have a UID
+            const previousDetail = targetUid
+                ? queryClient.getQueryData<Canvas>(canvasKeys.detail(targetUid))
                 : undefined;
 
             // Optimistically update list cache
@@ -188,9 +194,9 @@ export const useUpdateCanvas = (
             }
 
             // Optimistically update detail cache
-            if (previousDetail) {
+            if (previousDetail && targetUid) {
                 queryClient.setQueryData<Canvas>(
-                    canvasKeys.detail(previousDetail.canvas_uid),
+                    canvasKeys.detail(targetUid),
                     {
                         ...previousDetail,
                         ...data,
@@ -199,7 +205,7 @@ export const useUpdateCanvas = (
                 );
             }
 
-            return { previousList, previousDetail, canvasUid: canvasInList?.canvas_uid };
+            return { previousList, previousDetail, canvasUid: targetUid };
         },
         onError: (error, variables, context) => {
             // Rollback on error

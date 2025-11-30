@@ -262,14 +262,32 @@ const CanvasPage = () => {
 		scheduleAutoSave(false);
 	}, [scheduleAutoSave]);
 
+	const [isPinning, setIsPinning] = useState(false);
+
 	const handleTogglePin = useCallback(() => {
 		const currentCanvas = canvasRef.current;
-		if (!currentCanvas) return;
-		updateMutation.mutate({
-			id: currentCanvas.id,
-			data: { pinned: !currentCanvas.pinned },
-		});
-	}, [updateMutation]);
+		if (!currentCanvas || isPinning) return;
+
+		const willBePinned = !currentCanvas.pinned;
+		setIsPinning(true);
+		updateMutation.mutate(
+			{
+				id: currentCanvas.id,
+				uid: currentCanvas.canvas_uid,
+				data: { pinned: willBePinned },
+			},
+			{
+				onSuccess: () => {
+					setIsPinning(false);
+					toast.success(willBePinned ? 'Canvas pinned' : 'Canvas unpinned');
+				},
+				onError: () => {
+					setIsPinning(false);
+					toast.error('Failed to update pin status');
+				},
+			}
+		);
+	}, [updateMutation, isPinning]);
 
 	const deleteMutation = useDeleteCanvas({
 		onSuccess: () => {
@@ -467,11 +485,12 @@ const CanvasPage = () => {
 
 								<div className="relative">
 									<button
-										className="ml-2 p-1 rounded hover:bg-gray-100"
+										className="ml-2 p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
 										onClick={handleTogglePin}
+										disabled={isPinning}
 										title={canvas?.pinned ? 'Unpin canvas' : 'Pin canvas'}
 									>
-										<Pin className={`h-5 w-5 ${canvas?.pinned ? 'text-yellow-500' : 'text-gray-400'}`} />
+										<Pin className={`h-5 w-5 ${canvas?.pinned ? 'text-yellow-500 fill-yellow-500' : 'text-gray-400'}`} />
 									</button>
 									<button className="ml-2 p-1 rounded hover:bg-gray-100" onClick={() => setShowMenu(v => !v)}>
 										<MoreHorizontal className="h-5 w-5 text-gray-400" />
@@ -483,7 +502,7 @@ const CanvasPage = () => {
 										</div>
 									)}
 								</div>
-							</div>
+							</div >
 
 							<div className="flex-1 flex justify-center">
 								<div className="flex bg-gray-100 rounded-full shadow-inner px-1 py-1 gap-1">
@@ -521,8 +540,8 @@ const CanvasPage = () => {
 								<Button variant="ghost" size="icon" onClick={toggleAiDrawer} className="text-gray-500 hover:text-blue-600 rounded-full"><Sparkles className="h-5 w-5" /></Button>
 								<Button variant="ghost" size="icon" onClick={() => setFullscreen(f => !f)} className="text-gray-500 hover:text-blue-600 rounded-full">{fullscreen ? <Minimize className="h-5 w-5 text-blue-600" /> : <Maximize className="h-5 w-5 text-gray-600" />}</Button>
 							</div>
-						</div>
-					</motion.div>
+						</div >
+					</motion.div >
 
 					<motion.div
 						initial={{ opacity: 0 }}
@@ -532,12 +551,12 @@ const CanvasPage = () => {
 					>
 						{renderContent()}
 					</motion.div>
-				</div>
-			</div>
+				</div >
+			</div >
 			{!fullscreen && <AiDrawer />}
 			<EraserPropertiesPanel isOpen={isPropertiesPanelOpen} onClose={() => setIsPropertiesPanelOpen(false)} selectedElements={selectedElements} onUpdateElement={handleUpdateElement} />
 			<IconSearchModal isOpen={showIconModal} onClose={() => setShowIconModal(false)} onSelectIcon={handleIconSelect} />
-		</div>
+		</div >
 	);
 };
 
