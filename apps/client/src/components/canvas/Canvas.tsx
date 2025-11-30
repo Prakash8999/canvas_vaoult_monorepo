@@ -16,6 +16,9 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
   // 1. Ref to block 'onChange' when we are programmatically updating the scene
   const isProgrammaticUpdate = useRef(false);
 
+  // 2. Ref to ignore initial onChange calls during mount (prevents false "unsaved" on load)
+  const isInitialMount = useRef(true);
+
   const initialDataRef = useRef<{ elements: ExcalidrawElement[], appState?: any } | null>(null);
   const isInitializedRef = useRef(false);
 
@@ -52,6 +55,11 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
         api.scrollToContent(data, { fitToViewport: false, viewportZoomFactor: 0.1 });
       }
       isInitializedRef.current = true;
+
+      // After initialization, allow onChange to work
+      setTimeout(() => {
+        isInitialMount.current = false;
+      }, 200);
     }, 100);
   }, [api, data, viewport]);
 
@@ -77,6 +85,9 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
   }, [api, data]);
 
   const handleChange = useCallback((elements: readonly any[], appState: any) => {
+    // ✅ IGNORE updates during initial mount
+    if (isInitialMount.current) return;
+
     // ✅ IGNORE updates that we triggered ourselves
     if (isProgrammaticUpdate.current) return;
 

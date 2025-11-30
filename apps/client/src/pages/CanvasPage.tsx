@@ -40,6 +40,9 @@ const CanvasPage = () => {
 	// 2. Local State for "Initial Load"
 	const [initialCanvasData, setInitialCanvasData] = useState<ExcalidrawElement[] | null>(null);
 	const [initialViewport, setInitialViewport] = useState<any>(null);
+	// 3. Current Canvas Data (includes unsaved changes) - using refs to avoid infinite loops
+	const currentCanvasDataRef = useRef<ExcalidrawElement[]>([]);
+	const currentViewportRef = useRef<any>(null);
 
 	const isDataReady = !isLoading && canvas && (
 		!canvas.canvas_data || // canvas is empty on server
@@ -49,8 +52,10 @@ const CanvasPage = () => {
 	// Refs to track state
 	const lastLoadedIdRef = useRef<number | null>(null);
 	const canvasRef = useRef(canvas);
-	// ✅ NEW: Track the "Version" of the saved data to prevent false "Unsaved" states
+	// ✅ Track the "Version" of the saved data to prevent false "Unsaved" states
 	const lastSavedVersionRef = useRef<number>(0);
+	// ✅ Track the last processed version to detect actual changes
+	const lastProcessedVersionRef = useRef<number>(0);
 
 	useEffect(() => {
 		canvasRef.current = canvas;
@@ -69,8 +74,13 @@ const CanvasPage = () => {
 			const data = canvas.canvas_data ? [...canvas.canvas_data] : [];
 			setInitialCanvasData(data);
 			setInitialViewport(canvas.viewport);
-			// Set initial version so we don't immediately think we are "dirty"
-			lastSavedVersionRef.current = getSceneVersion(data);
+			// Also set current data refs
+			currentCanvasDataRef.current = data;
+			currentViewportRef.current = canvas.viewport;
+			// Set initial versions so we don't immediately think we are "dirty"
+			const initialVersion = getSceneVersion(data);
+			lastSavedVersionRef.current = initialVersion;
+			lastProcessedVersionRef.current = initialVersion;
 		}
 	}, [canvas, initialCanvasData]);
 
@@ -100,9 +110,11 @@ const CanvasPage = () => {
 
 			pendingChangesRef.current = currentPending;
 
-			// Update version ref ONLY if we saved canvas data
+			// Update version refs ONLY if we saved canvas data
 			if (variables.data.canvas_data) {
-				lastSavedVersionRef.current = getSceneVersion(variables.data.canvas_data);
+				const savedVersion = getSceneVersion(variables.data.canvas_data);
+				lastSavedVersionRef.current = savedVersion;
+				lastProcessedVersionRef.current = savedVersion;
 			}
 		},
 		onError: (error) => {
@@ -165,7 +177,8 @@ const CanvasPage = () => {
 			// (Filters out selection changes, hover, etc.)
 			const currentVersion = getSceneVersion(typedElements);
 
-			if (currentVersion !== lastSavedVersionRef.current) {
+			// Compare with last PROCESSED version, not last SAVED version
+			if (currentVersion !== lastProcessedVersionRef.current) {
 				// UI Updates
 				const selected = elements.filter((el: any) => el?.isSelected === true);
 				startTransition(() => {
@@ -175,15 +188,24 @@ const CanvasPage = () => {
 
 				// Update Pending Data
 				const currentZoom = typeof appState.zoom === 'object' ? appState.zoom.value : appState.zoom;
+				const newViewport = {
+					scrollX: appState.scrollX,
+					scrollY: appState.scrollY,
+					zoom: currentZoom || 1
+				};
+
 				pendingChangesRef.current = {
 					...pendingChangesRef.current,
 					canvas_data: typedElements,
-					viewport: {
-						scrollX: appState.scrollX,
-						scrollY: appState.scrollY,
-						zoom: currentZoom || 1
-					}
+					viewport: newViewport
 				};
+
+				// Update current refs so it persists across view mode changes
+				currentCanvasDataRef.current = typedElements;
+				currentViewportRef.current = newViewport;
+
+				// Update the last processed version
+				lastProcessedVersionRef.current = currentVersion;
 
 				// Trigger "Loud" AutoSave (enables Blue Button)
 				scheduleAutoSave(false);
@@ -215,6 +237,10 @@ const CanvasPage = () => {
 			...pendingChangesRef.current,
 			viewport: vp
 		};
+
+		// Update current viewport ref
+		currentViewportRef.current = vp;
+
 		// Silent = true (Don't turn button blue, but do save eventually)
 		scheduleAutoSave(true);
 	}, [scheduleAutoSave]);
@@ -327,7 +353,12 @@ const CanvasPage = () => {
 			);
 		}
 
-		const safeCanvasData = initialCanvasData || [];
+		// Use current data (includes unsaved changes) instead of initial data
+		const safeCanvasData = currentCanvasDataRef.current.length > 0 ? currentCanvasDataRef.current : (initialCanvasData || []);
+		const safeViewport = currentViewportRef.current || initialViewport;
+
+		// Use activeSection in key to force remount when switching views
+		const canvasKey = `${canvas.id}-${activeSection}`;
 
 		switch (activeSection) {
 			case 'document':
@@ -351,10 +382,10 @@ const CanvasPage = () => {
 					<div className="h-full w-full bg-gray-50 relative overflow-hidden flex flex-col">
 						<div className="flex-1 flex">
 							<Canvas
-								key={canvas.id}
+								key={canvasKey}
 								data={safeCanvasData}
 								onChange={handleCanvasChange}
-								viewport={initialViewport}
+								viewport={safeViewport}
 								onViewportChange={handleViewportChange}
 							/>
 						</div>
@@ -380,10 +411,10 @@ const CanvasPage = () => {
 						<div className="flex-1 bg-gray-50 flex flex-col justify-center items-center p-4 min-w-[350px] relative">
 							<div className="w-full h-full max-w-3xl flex">
 								<Canvas
-									key={canvas.id}
+									key={canvasKey}
 									data={safeCanvasData}
 									onChange={handleCanvasChange}
-									viewport={initialViewport}
+									viewport={safeViewport}
 									onViewportChange={handleViewportChange}
 								/>
 							</div>
