@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { 
-  Home, 
-  FileText, 
-  Palette, 
-  Search, 
+import {
+  Home,
+  FileText,
+  Palette,
+  Search,
   Plus,
   Settings,
   Brain,
@@ -31,10 +31,10 @@ import { cn } from '@/lib/utils';
 export function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { 
-    sidebarOpen, 
-    toggleSidebar, 
-    currentWorkspace, 
+  const {
+    sidebarOpen,
+    toggleSidebar,
+    currentWorkspace,
     currentNote,
     setCurrentNote,
     toggleQuickCapture,
@@ -43,15 +43,15 @@ export function Sidebar() {
     setSearchQuery,
     addToRecent,
   } = useWorkspaceStore();
-  
+
   const { createNote } = useNoteMutations();
-  
+
   // determine active route to show focus in sidebar
   const path = location.pathname || '';
   const isDashboardActive = path === '/' || path.startsWith('/dashboard');
-  const isNoteActive = path.startsWith('/note');
-  const isCanvasActive = path.startsWith('/canvas');
-  
+  const isNoteActive = path.startsWith('/notes') || path.startsWith('/note/');
+  const isCanvasActive = path.startsWith('/canvases') || path.startsWith('/canvas/');
+
   const [expandedSections, setExpandedSections] = useState({
     recent: true,
     pinned: true,
@@ -99,50 +99,72 @@ export function Sidebar() {
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
-        
+
         <Separator />
-        
+
         <Button
           variant="ghost"
           size="icon"
-          onClick={async () => {
-            try {
-              const apiNote = await createNote({ name: 'New Note' });
-              const localNote = convertApiNoteToLocal(apiNote);
-              navigate(`/note/${localNote.id}`);
-            } catch (error) {
-              console.error('Failed to create note:', error);
-            }
-          }}
+          // onClick={async () => {
+          //   try {
+          //     const apiNote = await createNote({ title: 'New Note' });
+          //     const localNote = convertApiNoteToLocal(apiNote);
+          //     navigate(`/note/${localNote.id}`);
+          //   } catch (error) {
+          //     console.error('Failed to create note:', error);
+          //   }
+          // }}
+          // className={cn(
+          //   "text-sidebar-foreground hover:bg-sidebar-accent",
+          //   isNoteActive && "bg-sidebar-accent"
+          // )}
+          onClick={() => navigate('/dashboard')}
           className={cn(
-            "text-sidebar-foreground hover:bg-sidebar-accent",
-            isNoteActive && "bg-sidebar-accent"
+            "text-sidebar-foreground transition-all duration-300",
+            isDashboardActive ? "bg-black/5 dark:bg-white/10" : "",
+            "hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
           )}
         >
-          <Plus className="h-4 w-4" />
+          <Home className="h-4 w-4" />
         </Button>
-        
+
         <Button
           variant="ghost"
           size="icon"
-          onClick={toggleQuickCapture}
-          className="text-sidebar-foreground hover:bg-sidebar-accent"
-        >
+          onClick={() => navigate('/notes')}
+          className={cn(
+            "text-sidebar-foreground transition-all duration-300",
+            isNoteActive ? "bg-black/5 dark:bg-white/10" : "",
+            "hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
+          )}        >
           <FileText className="h-4 w-4" />
         </Button>
-        
+
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate('/canvas')}
+          onClick={() => navigate('/canvases')}
           className={cn(
-            "text-sidebar-foreground hover:bg-sidebar-accent",
-            isCanvasActive && "bg-sidebar-accent"
+            "text-sidebar-foreground transition-all duration-300",
+            isCanvasActive ? "bg-black/5 dark:bg-white/10" : "",
+            "hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
           )}
         >
           <Palette className="h-4 w-4" />
         </Button>
-        
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleQuickCapture}
+          className={cn(
+            "text-sidebar-foreground transition-all duration-300",
+            isNoteActive ? "bg-black/5 dark:bg-white/10" : "",
+            "hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
+          )}        >
+          <FileText className="h-4 w-4" />
+        </Button>
+
         <Button
           variant="ghost"
           size="icon"
@@ -176,7 +198,7 @@ export function Sidebar() {
             <ChevronDown className="h-4 w-4" />
           </Button>
         </div>
-        
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -195,8 +217,9 @@ export function Sidebar() {
           variant="ghost"
           onClick={() => navigate('/dashboard')}
           className={cn(
-            "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent",
-            isDashboardActive && 'bg-sidebar-accent'
+            "w-full justify-start text-sm font-medium text-sidebar-foreground transition-all duration-300",
+            isDashboardActive ? "bg-black/5 dark:bg-white/10" : "",
+            "hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
           )}
         >
           <Home className="mr-2 h-4 w-4" />
@@ -215,43 +238,49 @@ export function Sidebar() {
         </Button>
          */}
 
-           <Button
-              variant="ghost"
-              asChild
-              className="w-full justify-start text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent"
-            >
-              <Link to="/notes" className="flex items-center">
-                <FileText className="mr-2 h-4 w-4" />
-                All Notes
-                <Plus className="ml-auto h-3 w-3" />
-              </Link>
-            </Button>
+        <Button
+          variant="ghost"
+          asChild
+          className={cn(
+            "w-full justify-start text-sm font-medium text-sidebar-foreground transition-all duration-300",
+            isNoteActive ? "bg-black/5 dark:bg-white/10" : "",
+            "hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
+          )}
+        >
+          <Link to="/notes" className="flex items-center">
+            <FileText className="mr-2 h-4 w-4" />
+            All Notes
+            <Plus className="ml-auto h-3 w-3" />
+          </Link>
+        </Button>
+
         <Button
           variant="ghost"
           onClick={() => navigate('/canvases')}
           className={cn(
-            "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent",
-            location.pathname.startsWith('/canvases') && 'bg-sidebar-accent'
+            "w-full justify-start text-sm font-medium text-sidebar-foreground transition-all duration-300",
+            isCanvasActive ? "bg-black/5 dark:bg-white/10" : "",
+            "hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
           )}
         >
           <Palette className="mr-2 h-4 w-4" />
           All Canvases
           <Plus className="ml-auto h-3 w-3" />
         </Button>
-        
+
         <Button
           variant="ghost"
           onClick={toggleQuickCapture}
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent  hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
         >
           <FileText className="mr-2 h-4 w-4" />
           Quick Capture
         </Button>
-        
+
         <Button
           variant="ghost"
           onClick={toggleAiDrawer}
-          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent"
+          className="w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:shadow hover:border hover:border-purple-400 hover:bg-black/5 dark:hover:bg-white/10"
         >
           <Brain className="mr-2 h-4 w-4" />
           AI Assistant
@@ -259,8 +288,8 @@ export function Sidebar() {
       </div>
 
       {/* Content */}
-      
-     
+
+
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-6">
           {/* Recent Notes */}
@@ -279,7 +308,7 @@ export function Sidebar() {
                 <Clock className="mr-2 h-3 w-3" />
                 Recent
               </Button>
-              
+
               {expandedSections.recent && (
                 <div className="ml-6 space-y-1">
                   {recentNotes.map((note) => (
@@ -317,7 +346,7 @@ export function Sidebar() {
                 <Pin className="mr-2 h-3 w-3" />
                 Pinned
               </Button>
-              
+
               {expandedSections.pinned && (
                 <div className="ml-6 space-y-1">
                   {pinnedNotes.map((note) => (
@@ -369,7 +398,7 @@ export function Sidebar() {
               <FileText className="mr-2 h-3 w-3" />
               Notes ({regularNotes.length})
             </Button>
-            
+
             {expandedSections.notes && (
               <div className="ml-6 space-y-1">
                 {regularNotes.map((note) => (
@@ -405,7 +434,7 @@ export function Sidebar() {
               <Palette className="mr-2 h-3 w-3" />
               Canvases ({canvases.length})
             </Button>
-            
+
             {expandedSections.canvases && (
               <div className="ml-6 space-y-1">
                 {canvases.map((note) => (

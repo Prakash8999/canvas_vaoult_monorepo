@@ -64,7 +64,7 @@ export const getCanvas = async (req: Request, res: Response) => {
         if (!canvas) {
             return errorHandler(res, "Canvas not found", {}, 404);
         }
-        console.log('Canvas fetched successfully:', canvas);
+        // console.log('Canvas fetched successfully:', canvas);
         return successHandler(res, "Canvas fetched successfully", {
             id: canvas.id,
             canvas_uid: canvas.canvas_uid,
