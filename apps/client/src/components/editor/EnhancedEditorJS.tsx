@@ -45,9 +45,9 @@ interface EnhancedEditorJSProps {
   onShowSearchResults?: (results: any[], wikiLinkName: string, wikiLinkElement: HTMLElement) => void; // Show search popup
 }
 
-export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJSProps>(function EnhancedEditorJS({ 
-  data, 
-  onChange, 
+export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJSProps>(function EnhancedEditorJS({
+  data,
+  onChange,
   placeholder = "Start writing...",
   readOnly = false,
   alignLeft = false,
@@ -68,48 +68,48 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
   const searchOverlayRef = useRef<HTMLDivElement>(null);
   const isSavingWikiLinkRef = useRef<boolean>(false);
   const creatingWikiLinksRef = useRef<Set<string>>(new Set());
-  
-  const { 
-    notes, 
+
+  const {
+    notes,
     currentNoteId,
-    setCurrentNote, 
+    setCurrentNote,
     mode: storeMode,
     setMode
   } = useEnhancedNoteStore();
   const { createNote } = useNoteMutations();
-  
+
   // Store latest props in a ref to avoid recreating the editor when props change
   const propsRef = useRef({ data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults });
-  
+
   // Update propsRef when props change
   useEffect(() => {
     propsRef.current = { data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults };
   }, [data, onChange, placeholder, readOnly, onImageError, onWikiLinkCreated, onSearchNotes, onShowSearchResults]);
-  
 
-  
+
+
   // Set the mode in the store when component mode changes
   useEffect(() => {
     if (mode !== storeMode) {
       setMode(mode);
     }
   }, [mode, storeMode, setMode]);
-  
+
   // Handle search functionality
   const showSearch = useCallback(() => {
     if (!searchOverlayRef.current || !searchInputRef.current) return;
-    
+
     searchOverlayRef.current.style.display = 'flex';
     searchOverlayRef.current.style.alignItems = 'start';
     searchOverlayRef.current.style.justifyContent = 'center';
     searchInputRef.current.focus();
   }, []);
-  
+
   const hideSearch = useCallback(() => {
     if (!searchOverlayRef.current) return;
     searchOverlayRef.current.style.display = 'none';
   }, []);
-  
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -118,17 +118,17 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       //   e.preventDefault();
       //   showSearch();
       // }
-      
+
       // Escape to close search
       if (e.key === 'Escape') {
         hideSearch();
       }
     };
-    
+
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showSearch, hideSearch]);
-  
+
   const getAvailableNotes = useCallback(() => {
     return Object.values(notes).map(note => ({
       id: note.id,
@@ -136,8 +136,8 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       note_uid: (note as any).note_uid, // Include note_uid for WikiLink matching
     }));
   }, [notes]);
-  
-  
+
+
   // Helper function to update WikiLinks with note IDs
   const updateWikiLinksWithId = useCallback((noteName: string, noteId: string) => {
     // Find all WikiLinks with this title and update their data-note-id
@@ -146,7 +146,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       link.setAttribute('data-note-id', noteId);
     });
   }, []);
-  
+
   // DISABLED: updateAllWikiLinkIds function - now completely passive to preserve existing UIDs
   const updateAllWikiLinkIds = useCallback(() => {
     console.log('[WikiLink] updateAllWikiLinkIds called but disabled to preserve existing WikiLink UIDs');
@@ -220,14 +220,14 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     }
     creatingWikiLinksRef.current.delete(noteName);
   }, []);
-  
+
   // Store reference to the currently clicked WikiLink element
   const clickedWikiLinkRef = useRef<HTMLElement | null>(null);
 
   const handleNavigateToNote = useCallback(async (noteName: string, noteId?: string | null, noteUid?: string | null, clickedElement?: HTMLElement) => {
     // Store the clicked element reference for later use
     clickedWikiLinkRef.current = clickedElement || null;
-    
+
     if (clickedElement) {
       console.log('[WikiLink] Stored reference to clicked element:', {
         noteName,
@@ -265,7 +265,7 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
       // DISABLED: Don't make server calls to check note existence during navigation
       // This was causing valid UIDs to be cleared on refresh/API timeouts
       console.log(`[WikiLink] Note with uid ${noteUid} not in local store - proceeding with navigation without server check`);
-      
+
       // Just proceed with navigation - if the note doesn't exist, the navigation will handle it
       if (onNavigateToNote) {
         onNavigateToNote(noteUid);
@@ -319,195 +319,195 @@ export const EnhancedEditorJS = forwardRef<EnhancedEditorJSRef, EnhancedEditorJS
     // No existing note: create one. Before creating, save current editor content to persist
     // the WikiLink that was just clicked (so the new note_uid can be saved to current content)
     console.log(`[WikiLink] Creating new note: ${noteName}`);
-    
+
     // Disable the WikiLink during creation to prevent multiple clicks
     disableWikiLink(noteName, clickedWikiLinkRef.current || undefined);
-    
+
     try {
       const isFirstNote = Object.keys(freshNotes).length === 0;
-    // let newApiNote;
-    // if (isFirstNote) {
-    //   newApiNote = await createNote({
-    //     title: noteName,
-    //     content: {
-    //       blocks: [
-    //         {
-    //           type: 'paragraph',
-    //           data: {
-    //             text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
-    //           }
-    //         },
-    //         {
-    //           type: 'list',
-    //           data: {
-    //             style: 'unordered',
-    //             items: [
-    //               'Create links between notes using [[Note Name]] syntax',
-    //               'Add tags to organize your notes with #hashtag',
-    //               'Use the graph view to visualize connections',
-    //               'Run JavaScript and Python code in runnable blocks',
-    //               'Create charts from your data',
-    //               'Pin important notes for quick access'
-    //             ]
-    //           }
-    //         },
-    //         {
-    //           type: 'paragraph',
-    //           data: {
-    //             text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
-    //           }
-    //         }
-    //       ]
-    //     }
-    //   });
-    // } else {
-    //   newApiNote = await createNote({ title: noteName });
-    // }
+      // let newApiNote;
+      // if (isFirstNote) {
+      //   newApiNote = await createNote({
+      //     title: noteName,
+      //     content: {
+      //       blocks: [
+      //         {
+      //           type: 'paragraph',
+      //           data: {
+      //             text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
+      //           }
+      //         },
+      //         {
+      //           type: 'list',
+      //           data: {
+      //             style: 'unordered',
+      //             items: [
+      //               'Create links between notes using [[Note Name]] syntax',
+      //               'Add tags to organize your notes with #hashtag',
+      //               'Use the graph view to visualize connections',
+      //               'Run JavaScript and Python code in runnable blocks',
+      //               'Create charts from your data',
+      //               'Pin important notes for quick access'
+      //             ]
+      //           }
+      //         },
+      //         {
+      //           type: 'paragraph',
+      //           data: {
+      //             text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
+      //           }
+      //         }
+      //       ]
+      //     }
+      //   });
+      // } else {
+      //   newApiNote = await createNote({ title: noteName });
+      // }
 
 
-const newNotePayload: any = {
-      title: noteName,
-      is_wiki_link: true,
-      parent_note_id: currentNoteId || null // currentNoteId IS the parent!
-    };
-
-    // 2. Add welcome content only if it's the very first note
-    if (isFirstNote) {
-      newNotePayload.content = {
-        blocks: [
-          {
-            type: 'paragraph',
-            data: {
-              text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
-            }
-          },
-          {
-            type: 'list',
-            data: {
-              style: 'unordered',
-              items: [
-                'Create links between notes using [[Note Name]] syntax',
-                'Add tags to organize your notes with #hashtag',
-                'Use the graph view to visualize connections',
-                'Run JavaScript and Python code in runnable blocks',
-                'Create charts from your data',
-                'Pin important notes for quick access'
-              ]
-            }
-          },
-          {
-            type: 'paragraph',
-            data: {
-              text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
-            }
-          }
-        ]
+      const newNotePayload: any = {
+        title: noteName,
+        is_wiki_link: true,
+        parent_note_id: currentNoteId || null // currentNoteId IS the parent!
       };
-    }
 
-    // 3. Call createNote with the new payload
-    const newApiNote = await createNote(newNotePayload);
+      // 2. Add welcome content only if it's the very first note
+      if (isFirstNote) {
+        newNotePayload.content = {
+          blocks: [
+            {
+              type: 'paragraph',
+              data: {
+                text: 'Welcome to your enhanced note editor! Here are some features to get you started:'
+              }
+            },
+            {
+              type: 'list',
+              data: {
+                style: 'unordered',
+                items: [
+                  'Create links between notes using [[Note Name]] syntax',
+                  'Add tags to organize your notes with #hashtag',
+                  'Use the graph view to visualize connections',
+                  'Run JavaScript and Python code in runnable blocks',
+                  'Create charts from your data',
+                  'Pin important notes for quick access'
+                ]
+              }
+            },
+            {
+              type: 'paragraph',
+              data: {
+                text: 'Try creating a link to a new note: [[My First Note]] - click it to create and navigate!'
+              }
+            }
+          ]
+        };
+      }
+
+      // 3. Call createNote with the new payload
+      const newApiNote = await createNote(newNotePayload);
 
 
 
 
-  // Normalize returned identifiers
-  const newNoteId = newApiNote.id?.toString?.() || newApiNote.id + '';
-  const newNoteUid = (newApiNote as any).note_uid || '';
+      // Normalize returned identifiers
+      const newNoteId = newApiNote.id?.toString?.() || newApiNote.id + '';
+      const newNoteUid = (newApiNote as any).note_uid || '';
 
-  // Log the full API response for debugging and the generated note_uid
-  console.log('[WikiLink] createNote response:', newApiNote);
-  console.log(`[WikiLink] Created note with ID: ${newNoteId}, UID: ${newNoteUid}`);
+      // Log the full API response for debugging and the generated note_uid
+      console.log('[WikiLink] createNote response:', newApiNote);
+      console.log(`[WikiLink] Created note with ID: ${newNoteId}, UID: ${newNoteUid}`);
 
-    // Update only the specific clicked wiki-link element, not all elements with the same title
-    let updatedCount = 0;
-    const clickedLink = clickedWikiLinkRef.current;
-    
-    if (clickedLink) {
-      // Update only the clicked element
-      const oldNoteId = clickedLink.getAttribute('data-note-id');
-      const oldNoteUid = clickedLink.getAttribute('data-note-uid');
-      
-      if (newNoteId) clickedLink.setAttribute('data-note-id', newNoteId);
-      if (newNoteUid) clickedLink.setAttribute('data-note-uid', newNoteUid);
-      updatedCount = 1;
-      
-      console.log(`[WikiLink] Updated the specific clicked WikiLink element:`, {
-        noteName,
-        elementText: clickedLink.textContent,
-        oldNoteId,
-        newNoteId,
-        oldNoteUid,
-        newNoteUid,
-        elementHTML: clickedLink.outerHTML.substring(0, 100) + '...'
-      });
-      
-      // Clear the clicked element reference after successful update
-      clickedWikiLinkRef.current = null;
-    } else {
-      // Fallback: if we don't have the clicked element reference, update all (old behavior)
-      console.warn('[WikiLink] No clicked element reference, falling back to updating all WikiLinks with same title');
-      const wikiLinksToUpdate = document.querySelectorAll(`wiki-link[data-note-title="${noteName}"]`);
-      wikiLinksToUpdate.forEach((link, index) => {
-        const oldNoteId = link.getAttribute('data-note-id');
-        const oldNoteUid = link.getAttribute('data-note-uid');
-        if (newNoteId) link.setAttribute('data-note-id', newNoteId);
-        if (newNoteUid) link.setAttribute('data-note-uid', newNoteUid);
-        
-        console.log(`[WikiLink] Updated WikiLink ${index + 1}:`, {
+      // Update only the specific clicked wiki-link element, not all elements with the same title
+      let updatedCount = 0;
+      const clickedLink = clickedWikiLinkRef.current;
+
+      if (clickedLink) {
+        // Update only the clicked element
+        const oldNoteId = clickedLink.getAttribute('data-note-id');
+        const oldNoteUid = clickedLink.getAttribute('data-note-uid');
+
+        if (newNoteId) clickedLink.setAttribute('data-note-id', newNoteId);
+        if (newNoteUid) clickedLink.setAttribute('data-note-uid', newNoteUid);
+        updatedCount = 1;
+
+        console.log(`[WikiLink] Updated the specific clicked WikiLink element:`, {
           noteName,
-          elementText: link.textContent,
+          elementText: clickedLink.textContent,
           oldNoteId,
           newNoteId,
           oldNoteUid,
-          newNoteUid
+          newNoteUid,
+          elementHTML: clickedLink.outerHTML.substring(0, 100) + '...'
         });
-      });
-      updatedCount = wikiLinksToUpdate.length;
-    }
 
-    console.log(`[WikiLink] Updated ${updatedCount} WikiLink element(s) with new note_uid: ${newNoteUid}`);
+        // Clear the clicked element reference after successful update
+        clickedWikiLinkRef.current = null;
+      } else {
+        // Fallback: if we don't have the clicked element reference, update all (old behavior)
+        console.warn('[WikiLink] No clicked element reference, falling back to updating all WikiLinks with same title');
+        const wikiLinksToUpdate = document.querySelectorAll(`wiki-link[data-note-title="${noteName}"]`);
+        wikiLinksToUpdate.forEach((link, index) => {
+          const oldNoteId = link.getAttribute('data-note-id');
+          const oldNoteUid = link.getAttribute('data-note-uid');
+          if (newNoteId) link.setAttribute('data-note-id', newNoteId);
+          if (newNoteUid) link.setAttribute('data-note-uid', newNoteUid);
 
-    // Attempt to persist the updated wiki-link attributes by triggering editor save
-    // This is critical to ensure the note_uid is saved back to the current note's content
-    
-    try {
-      if (editorRef.current && typeof editorRef.current.save === 'function') {
-        // Set flag to prevent EditorJS onChange from triggering during our save
-        isSavingWikiLinkRef.current = true;
-        
-        const savedData = await editorRef.current.save();
-        console.log('[WikiLink] Successfully saved editor content with updated note_uid');
-        
-        // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
-        if (onWikiLinkCreated) {
-          await onWikiLinkCreated(savedData);
-          console.log('[WikiLink] onWikiLinkCreated completed - content saved to database');
-        } else if (propsRef.current.onChange) {
-          // Fallback: trigger onChange and force save
-          propsRef.current.onChange(savedData);
-          console.log('[WikiLink] Triggered onChange with updated content');
-          
-          // Force manual save through onSaveCurrentNote if available
-          if (onSaveCurrentNote) {
-            try {
-              await onSaveCurrentNote();
-              console.log('[WikiLink] Forced manual save completed');
-            } catch (saveErr) {
-              console.warn('[WikiLink] Manual save failed:', saveErr);
+          console.log(`[WikiLink] Updated WikiLink ${index + 1}:`, {
+            noteName,
+            elementText: link.textContent,
+            oldNoteId,
+            newNoteId,
+            oldNoteUid,
+            newNoteUid
+          });
+        });
+        updatedCount = wikiLinksToUpdate.length;
+      }
+
+      console.log(`[WikiLink] Updated ${updatedCount} WikiLink element(s) with new note_uid: ${newNoteUid}`);
+
+      // Attempt to persist the updated wiki-link attributes by triggering editor save
+      // This is critical to ensure the note_uid is saved back to the current note's content
+
+      try {
+        if (editorRef.current && typeof editorRef.current.save === 'function') {
+          // Set flag to prevent EditorJS onChange from triggering during our save
+          isSavingWikiLinkRef.current = true;
+
+          const savedData = await editorRef.current.save();
+          console.log('[WikiLink] Successfully saved editor content with updated note_uid');
+
+          // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
+          if (onWikiLinkCreated) {
+            await onWikiLinkCreated(savedData);
+            console.log('[WikiLink] onWikiLinkCreated completed - content saved to database');
+          } else if (propsRef.current.onChange) {
+            // Fallback: trigger onChange and force save
+            propsRef.current.onChange(savedData);
+            console.log('[WikiLink] Triggered onChange with updated content');
+
+            // Force manual save through onSaveCurrentNote if available
+            if (onSaveCurrentNote) {
+              try {
+                await onSaveCurrentNote();
+                console.log('[WikiLink] Forced manual save completed');
+              } catch (saveErr) {
+                console.warn('[WikiLink] Manual save failed:', saveErr);
+              }
             }
           }
+
+          // Clear the flag after a short delay to allow any pending EditorJS onChange to complete
+          setTimeout(() => {
+            isSavingWikiLinkRef.current = false;
+          }, 100);
         }
-        
-        // Clear the flag after a short delay to allow any pending EditorJS onChange to complete
-        setTimeout(() => {
-          isSavingWikiLinkRef.current = false;
-        }, 100);
+      } catch (err) {
+        console.warn('Failed to save editor after updating wiki links with uid:', err);
+        isSavingWikiLinkRef.current = false;
       }
-    } catch (err) {
-      console.warn('Failed to save editor after updating wiki links with uid:', err);
-      isSavingWikiLinkRef.current = false;
-    }
 
       // Navigate to the newly created note using note_uid when possible (routes expect note_uid)
       // Prefer routing by note_uid when available
@@ -517,7 +517,7 @@ const newNotePayload: any = {
       } else {
         setCurrentNote(newNoteId);
       }
-      
+
     } catch (error) {
       console.error(`[WikiLink] Failed to create note: ${noteName}`, error);
       // Re-enable the WikiLink on error
@@ -535,9 +535,9 @@ const newNotePayload: any = {
   const handleCodeExecution = useCallback(async (code: string, language: string) => {
     return await codeExecutionService.executeCode(code, language);
   }, []);
-  
 
-useEffect(() => {
+
+  useEffect(() => {
     const editorHolder = holderRef.current;
     if (!editorHolder) {
       return;
@@ -554,7 +554,7 @@ useEffect(() => {
         e.stopImmediatePropagation();
 
         const noteName = wikiLink.getAttribute('data-note-title') || wikiLink.textContent?.replace(/^\[\[|\]\]$/g, '') || '';
-        
+
         // Check if this WikiLink is already being created
         if (wikiLink.getAttribute('data-creating') === 'true' || creatingWikiLinksRef.current.has(noteName)) {
           console.log(`[WikiLink] Click ignored - already creating note: ${noteName}`);
@@ -578,7 +578,7 @@ useEffect(() => {
     return () => {
       editorHolder.removeEventListener('click', handleWikiLinkClick);
     };
-    
+
     // Re-run this effect if the holderRef changes or the navigation handler prop changes
   }, [holderRef.current, onNavigateToNote]);
 
@@ -634,6 +634,7 @@ useEffect(() => {
                   `${import.meta.env.VITE_BASE_URL}/api/v1/assets/upload?fileType=note`,
                   formData,
                   {
+                    withCredentials: true,
                     headers: {
                       Authorization: token ? `Bearer ${token}` : '',
                     },
@@ -662,7 +663,7 @@ useEffect(() => {
         }
       },
     };
-    
+
     // Add advanced tools only in full mode
     const advancedTools = mode === 'full' ? {
       wikiLink: {
@@ -691,7 +692,7 @@ useEffect(() => {
         }
       },
     } : {};
-    
+
     const editor = new EditorJS({
       holder: holderRef.current,
       readOnly: propsRef.current.readOnly,
@@ -707,12 +708,12 @@ useEffect(() => {
           console.log('[EditorJS] Skipping onChange - currently saving WikiLink updates');
           return;
         }
-        
+
         if (propsRef.current.onChange && editorRef.current) {
           try {
             const outputData = await editorRef.current.save();
             propsRef.current.onChange(outputData);
-            
+
             // Update WikiLink IDs after content changes
             setTimeout(() => {
               updateAllWikiLinkIds();
@@ -725,7 +726,7 @@ useEffect(() => {
     });
 
     editorRef.current = editor;
-    
+
     // DISABLED: WikiLink ID updates after editor ready - was causing UID clearing
     editor.isReady.then(() => {
       console.log('[WikiLink] Editor ready - WikiLink updates disabled to preserve existing UIDs');
@@ -746,7 +747,7 @@ useEffect(() => {
         editorRef.current.destroy();
         editorRef.current = null;
       }
-      
+
       // Re-enable any disabled WikiLinks on cleanup
       creatingWikiLinksRef.current.forEach(noteName => {
         enableWikiLink(noteName); // Don't pass specific element for cleanup
@@ -762,7 +763,7 @@ useEffect(() => {
       // Destroy current editor and recreate with new data
       editorRef.current.destroy();
       editorRef.current = null;
-      
+
       // Small delay to ensure cleanup is complete
       setTimeout(() => {
         initializeEditor();
@@ -793,10 +794,10 @@ useEffect(() => {
         try {
           // Set flag to prevent EditorJS onChange from triggering during our save
           isSavingWikiLinkRef.current = true;
-          
+
           const savedData = await editorRef.current.save();
           console.log('[EnhancedEditorJS] Successfully saved editor content with updated wiki-link');
-          
+
           // Force immediate save through onWikiLinkCreated callback (bypasses auto-save debouncing)
           if (onWikiLinkCreated) {
             await onWikiLinkCreated(savedData, updatePayload);
@@ -804,7 +805,7 @@ useEffect(() => {
           } else {
             // Fallback: trigger onChange and force save
             propsRef.current.onChange?.(savedData);
-            
+
             // Force manual save through onSaveCurrentNote if available
             if (onSaveCurrentNote) {
               await onSaveCurrentNote();
@@ -820,16 +821,16 @@ useEffect(() => {
     },
     handleNavigateToNote: handleNavigateToNote
   }), [onWikiLinkCreated, onSaveCurrentNote, handleNavigateToNote]);
-  
+
   // Handle search functionality
   const handleSearch = (query: string) => {
     if (!editorRef.current) return;
-    
+
     // This is a basic implementation
     // In a real implementation, you'd want to highlight matches in the editor
     const element = holderRef.current;
     if (!element) return;
-    
+
     // Remove previous highlights
     element.querySelectorAll('.search-highlight').forEach(el => {
       const parent = el.parentNode;
@@ -838,30 +839,30 @@ useEffect(() => {
         parent.normalize();
       }
     });
-    
+
     if (!query.trim()) return;
-    
+
     // Simple text highlighting (basic implementation)
     const walker = document.createTreeWalker(
       element,
       NodeFilter.SHOW_TEXT,
       null
     );
-    
+
     const textNodes: Text[] = [];
     let node;
-    
+
     while (node = walker.nextNode()) {
       if (node.textContent && node.textContent.toLowerCase().includes(query.toLowerCase())) {
         textNodes.push(node as Text);
       }
     }
-    
+
     textNodes.forEach(textNode => {
       const text = textNode.textContent || '';
       const regex = new RegExp(`(${query})`, 'gi');
       const highlightedHTML = text.replace(regex, '<span class="search-highlight bg-yellow-200 px-1 rounded">$1</span>');
-      
+
       if (highlightedHTML !== text) {
         const wrapper = document.createElement('span');
         wrapper.innerHTML = highlightedHTML;
@@ -912,7 +913,7 @@ useEffect(() => {
           </div>
         </div>
       )}
-      
+
       {/* Editor Container */}
       <div
         className={`editor-js-container ${alignLeft ? 'editorjs-toolbar-left pl-10' : ''} ${mode === 'full' ? 'enhanced-editor' : ''}`}

@@ -20,10 +20,13 @@ import { IconSearchModal } from '@/components/canvas/IconSearchModal';
 import { EditorJSEditor } from '@/components/editor/EditorJSEditor';
 import { useWorkspaceStore } from '@/stores/workspace';
 import { useCanvas, useUpdateCanvas, useDeleteCanvas } from '@/hooks/useCanvas';
-import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { ExcalidrawElement, FileId } from "@excalidraw/excalidraw/element/types";
 import { UpdateCanvasDto } from '@/lib/api/canvasApi';
 // ✅ IMPORT THIS HELPER
 import { getSceneVersion } from "@excalidraw/excalidraw";
+import { BinaryFiles, DataURL } from "@excalidraw/excalidraw/types";
+import axios from 'axios';
+import { useAuthStore } from '@/stores/authStore';
 
 type CanvasSection = 'document' | 'both' | 'canvas';
 
@@ -39,10 +42,39 @@ const CanvasPage = () => {
 
 	// 2. Local State for "Initial Load"
 	const [initialCanvasData, setInitialCanvasData] = useState<ExcalidrawElement[] | null>(null);
+	const [initialFiles, setInitialFiles] = useState<BinaryFiles>({});
 	const [initialViewport, setInitialViewport] = useState<any>(null);
 	// 3. Current Canvas Data (includes unsaved changes) - using refs to avoid infinite loops
 	const currentCanvasDataRef = useRef<ExcalidrawElement[]>([]);
+	const currentFilesRef = useRef<BinaryFiles>({});
+	const uploadedFilesMapRef = useRef<Record<string, { id: string; url: string }>>({});
+	const processingFilesRef = useRef<Set<string>>(new Set());
 	const currentViewportRef = useRef<any>(null);
+
+	const uploadImage = async (file: Blob) => {
+		const formData = new FormData();
+		const extension = file.type.split('/')[1] || 'png';
+		const filename = `image-${Date.now()}.${extension}`;
+		formData.append('file', file, filename);
+		const token = useAuthStore.getState().token;
+		try {
+			const response = await axios.post(
+				`${import.meta.env.VITE_BASE_URL}/api/v1/assets/upload?fileType=canvas`,
+				formData,
+				{
+					withCredentials: true,
+					headers: {
+						Authorization: token ? `Bearer ${token}` : '',
+					},
+				}
+			);
+			return { id: String(response.data.data.id), url: response.data.data.url };
+		} catch (error) {
+			console.error("Image upload failed:", error);
+			toast.error("Failed to upload image");
+			return null;
+		}
+	};
 
 	const isDataReady = !isLoading && canvas && (
 		!canvas.canvas_data || // canvas is empty on server
@@ -71,11 +103,23 @@ const CanvasPage = () => {
 
 		if (isNewCanvas || (hasDataNow && dataNotLoaded)) {
 			lastLoadedIdRef.current = canvas.id;
-			const data = canvas.canvas_data ? [...canvas.canvas_data] : [];
+
+			let data: ExcalidrawElement[] = [];
+			let files: BinaryFiles = {};
+
+			if (Array.isArray(canvas.canvas_data)) {
+				data = [...canvas.canvas_data];
+			} else if (canvas.canvas_data && typeof canvas.canvas_data === 'object') {
+				data = (canvas.canvas_data as any).elements || [];
+				files = (canvas.canvas_data as any).files || {};
+			}
+
 			setInitialCanvasData(data);
+			setInitialFiles(files);
 			setInitialViewport(canvas.viewport);
 			// Also set current data refs
 			currentCanvasDataRef.current = data;
+			currentFilesRef.current = files;
 			currentViewportRef.current = canvas.viewport;
 			// Set initial versions so we don't immediately think we are "dirty"
 			const initialVersion = getSceneVersion(data);
@@ -129,6 +173,13 @@ const CanvasPage = () => {
 		const changes = pendingChangesRef.current;
 
 		if (!currentCanvas?.id) return;
+
+		// Prevent save if images are still uploading
+		if (processingFilesRef.current.size > 0) {
+			console.log("Save blocked: Images are still uploading...");
+			return;
+		}
+
 		if (Object.keys(changes).length === 0) return;
 
 		setIsSaving(true);
@@ -169,9 +220,89 @@ const CanvasPage = () => {
 	// ============================================================================
 
 	// ✅ FIXED: Intelligent Change Handler
-	const handleCanvasChange = useCallback((elements: readonly unknown[], appState: any) => {
+	const handleCanvasChange = useCallback((elements: readonly unknown[], appState: any, files: BinaryFiles) => {
 		if (elements && Array.isArray(elements)) {
 			const typedElements = elements as ExcalidrawElement[];
+
+			// Handle Files
+			if (files) {
+				currentFilesRef.current = files;
+
+				// Check for new blobs
+				Object.entries(files).forEach(async ([fileId, fileData]) => {
+					if (!fileData.dataURL) return;
+
+					// If it's a blob/data URL and NOT already uploaded/processing
+					if ((fileData.dataURL.startsWith('blob:') || fileData.dataURL.startsWith('data:')) &&
+						!uploadedFilesMapRef.current[fileId] &&
+						!processingFilesRef.current.has(fileId)) {
+
+						processingFilesRef.current.add(fileId);
+
+						try {
+							const res = await fetch(fileData.dataURL);
+							const blob = await res.blob();
+							const uploadResult = await uploadImage(blob);
+
+							if (uploadResult) {
+								uploadedFilesMapRef.current[fileId] = uploadResult;
+
+								// Update the file dataURL to the S3 URL immediately in our ref
+								if (currentFilesRef.current[fileId]) {
+									currentFilesRef.current[fileId].dataURL = uploadResult.url as DataURL;
+								}
+
+								// Update pending changes with the new URL immediately so next save picks it up
+								// We construct the pending data from current refs to ensure we have the latest state
+								// even if handleCanvasChange returned early due to processing
+								const currentElements = currentCanvasDataRef.current;
+								const currentFiles = currentFilesRef.current;
+
+								// Transform elements: Replace fileId with Asset ID
+								const elementsToSave = currentElements.map(el => {
+									if (el.type === 'image' && el.fileId && uploadedFilesMapRef.current[el.fileId]) {
+										return { ...el, fileId: uploadedFilesMapRef.current[el.fileId].id as FileId };
+									}
+									return el;
+								});
+
+								// Transform files: Use Asset ID as key
+								const filesToSave = Object.entries(currentFiles).reduce((acc, [fid, f]) => {
+									const uploaded = uploadedFilesMapRef.current[fid];
+									if (uploaded) {
+										acc[uploaded.id] = {
+											...f,
+											id: uploaded.id as FileId,
+											dataURL: uploaded.url as DataURL
+										};
+									} else {
+										acc[fid] = f;
+									}
+									return acc;
+								}, {} as BinaryFiles);
+
+								pendingChangesRef.current = {
+									...pendingChangesRef.current,
+									canvas_data: {
+										elements: elementsToSave,
+										files: filesToSave
+									} as any
+								};
+
+								// Trigger a silent save to persist the S3 URL
+								// Only trigger save if this was the last file processing
+								if (processingFilesRef.current.size === 1) {
+									scheduleAutoSave(true);
+								}
+							}
+						} catch (e) {
+							console.error("Failed to process file", fileId, e);
+						} finally {
+							processingFilesRef.current.delete(fileId);
+						}
+					}
+				});
+			}
 
 			// 1. Check Scene Version: Did something ACTUALLY change?
 			// (Filters out selection changes, hover, etc.)
@@ -194,9 +325,50 @@ const CanvasPage = () => {
 					zoom: currentZoom || 1
 				};
 
+				// Don't save if we are currently uploading images
+				if (processingFilesRef.current.size > 0) {
+					// Just update refs, don't trigger save yet. 
+					// The save will be triggered when upload completes.
+					currentCanvasDataRef.current = typedElements;
+					currentViewportRef.current = newViewport;
+					lastProcessedVersionRef.current = currentVersion;
+					return;
+				}
+
+				// Prepare data for save, ensuring we use Asset IDs where available
+				const elementsToSave = typedElements.map(el => {
+					if (el.type === 'image' && el.fileId && uploadedFilesMapRef.current[el.fileId]) {
+						// Replace the temporary fileId with the Asset ID
+						return {
+							...el,
+							fileId: uploadedFilesMapRef.current[el.fileId].id as FileId
+						};
+					}
+					return el;
+				});
+
+				const filesToSave = files ? Object.entries(files).reduce((acc, [fid, f]) => {
+					const uploaded = uploadedFilesMapRef.current[fid];
+					if (uploaded) {
+						// Use Asset ID as the key and update the file data
+						acc[uploaded.id] = {
+							...f,
+							id: uploaded.id as FileId,
+							dataURL: uploaded.url as DataURL
+						};
+					} else {
+						// Keep the original file data if no Asset ID is available yet
+						acc[fid] = f;
+					}
+					return acc;
+				}, {} as BinaryFiles) : {};
+
 				pendingChangesRef.current = {
 					...pendingChangesRef.current,
-					canvas_data: typedElements,
+					canvas_data: {
+						elements: elementsToSave,
+						files: filesToSave
+					} as any,
 					viewport: newViewport
 				};
 
@@ -373,6 +545,7 @@ const CanvasPage = () => {
 
 		// Use current data (includes unsaved changes) instead of initial data
 		const safeCanvasData = currentCanvasDataRef.current.length > 0 ? currentCanvasDataRef.current : (initialCanvasData || []);
+		const safeFiles = Object.keys(currentFilesRef.current).length > 0 ? currentFilesRef.current : initialFiles;
 		const safeViewport = currentViewportRef.current || initialViewport;
 
 		// Use activeSection in key to force remount when switching views
@@ -402,6 +575,7 @@ const CanvasPage = () => {
 							<Canvas
 								key={canvasKey}
 								data={safeCanvasData}
+								files={safeFiles}
 								onChange={handleCanvasChange}
 								viewport={safeViewport}
 								onViewportChange={handleViewportChange}
@@ -431,6 +605,7 @@ const CanvasPage = () => {
 								<Canvas
 									key={canvasKey}
 									data={safeCanvasData}
+									files={safeFiles}
 									onChange={handleCanvasChange}
 									viewport={safeViewport}
 									onViewportChange={handleViewportChange}

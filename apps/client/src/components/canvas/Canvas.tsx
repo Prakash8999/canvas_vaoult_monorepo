@@ -5,12 +5,13 @@ import { ExcalidrawElement } from '@excalidraw/excalidraw/element/types';
 
 interface CanvasProps {
   data?: ExcalidrawElement[];
-  onChange?: (elements: readonly ExcalidrawElement[], appState: any) => void;
+  files?: any; // BinaryFiles
+  onChange?: (elements: readonly ExcalidrawElement[], appState: any, files: any) => void;
   viewport?: { scrollX: number; scrollY: number; zoom: number } | null;
   onViewportChange?: (viewport: { scrollX: number; scrollY: number; zoom: number }) => void;
 }
 
-const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => {
+const Canvas = ({ data, files, onChange, viewport, onViewportChange }: CanvasProps) => {
   const [api, setApi] = useState<any>(null);
 
   // 1. Ref to block 'onChange' when we are programmatically updating the scene
@@ -19,13 +20,14 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
   // 2. Ref to ignore initial onChange calls during mount (prevents false "unsaved" on load)
   const isInitialMount = useRef(true);
 
-  const initialDataRef = useRef<{ elements: ExcalidrawElement[], appState?: any } | null>(null);
+  const initialDataRef = useRef<{ elements: ExcalidrawElement[], appState?: any, files?: any } | null>(null);
   const isInitializedRef = useRef(false);
 
   // Prepare initial data only once
   if (!initialDataRef.current && data) {
     initialDataRef.current = {
       elements: data,
+      files: files,
       appState: viewport ? {
         scrollX: viewport.scrollX,
         scrollY: viewport.scrollY,
@@ -84,7 +86,7 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
     }
   }, [api, data]);
 
-  const handleChange = useCallback((elements: readonly any[], appState: any) => {
+  const handleChange = useCallback((elements: readonly any[], appState: any, files: any) => {
     // ✅ IGNORE updates during initial mount
     if (isInitialMount.current) return;
 
@@ -92,7 +94,7 @@ const Canvas = ({ data, onChange, viewport, onViewportChange }: CanvasProps) => 
     if (isProgrammaticUpdate.current) return;
 
     lastPushedElementsRef.current = elements as ExcalidrawElement[];
-    if (onChange) onChange(elements, appState);
+    if (onChange) onChange(elements, appState, files);
   }, [onChange]);
 
   return (

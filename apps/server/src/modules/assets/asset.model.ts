@@ -7,7 +7,7 @@ extendZodWithOpenApi(z);
 
 export const ImageSchema = z
   .object({
-    id: z.number().int().optional().openapi({
+    id: z.number().int().openapi({
       example: 1,
       description: 'Unique identifier for the image record',
     }),
@@ -45,12 +45,12 @@ export const ImageSchema = z
       description: 'ID of the linked entity (e.g., document, post, canvas, etc.)',
     }),
 
-    link_type: z
-      .enum(['doc', 'post', 'canvas', 'user', 'other'])
+    asset_type: z
+      .enum(['Note', 'Post', 'Canvas', 'User', 'Other'])
       .nullable()
       .optional()
       .openapi({
-        example: 'post',
+        example: 'Note',
         description: 'Type of entity this image is associated with',
       }),
 
@@ -85,8 +85,6 @@ export const ImageSchema = z
 
 export const CreateImageSchema = ImageSchema.omit({
   id: true,
-  created_at: true,
-  updated_at: true,
 }).openapi({
   title: 'CreateImageInput',
   description: 'Payload for uploading and storing image metadata',
@@ -106,9 +104,8 @@ export type ImageUpdateAttributes = z.infer<typeof UpdateImageSchema>;
 
 
 export class ImageAssets
-  extends Model<ImageAttributes>
-  implements ImageAttributes
-{
+  extends Model<ImageAttributes, ImageCreationAttributes>
+  implements ImageAttributes {
   public id!: number;
   public url!: string;
   public user_Id!: number;
@@ -117,7 +114,7 @@ export class ImageAssets
   public file_type!: string;
   public size_kb!: number;
   public link_id?: number | null;
-  public link_type?: 'doc' | 'post' | 'canvas' | 'user' | 'other' | null;
+  public asset_type?: 'Note' | 'Post' | 'Canvas' | 'User' | 'Other' | null;
   public metadata?: Record<string, any> | null;
   public created_at!: Date;
   public updated_at!: Date;
@@ -138,12 +135,12 @@ ImageAssets.init(
     s3_key: {
       type: DataTypes.STRING(500),
       allowNull: false
-	    },
+    },
     file_name: {
       type: DataTypes.STRING(255),
       allowNull: false,
     },
-    user_Id: { 
+    user_Id: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
@@ -159,8 +156,8 @@ ImageAssets.init(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    link_type: {
-      type: DataTypes.ENUM('doc', 'post', 'canvas', 'user', 'other'),
+    asset_type: {
+      type: DataTypes.ENUM('Note', 'Post', 'Canvas', 'User', 'Other'),
       allowNull: true,
     },
     metadata: {

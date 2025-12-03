@@ -42,8 +42,20 @@ export const handleUploadImages = async (req: Request, res: Response) => {
 			return errorHandler(res, "Only image files are allowed", {}, 400);
 		}
 
+		let { asset_type, fileType } = req.body;
+
+		if (!asset_type) {
+			const type = (req.query?.fileType as string) || fileType;
+			if (type) {
+				if (type === 'note' || type === 'notes') asset_type = 'Note';
+				else if (type === 'canvas') asset_type = 'Canvas';
+			}
+		}
+
+
 		const uploadedFile = assetService.processUploadedFile(file);
-		await ImageAssets.create({
+		const resData = await ImageAssets.create({
+			asset_type,
 			user_Id: req.user.userId,
 			s3_key: uploadedFile.key,
 			size_kb: Math.round(uploadedFile.size),
@@ -54,7 +66,11 @@ export const handleUploadImages = async (req: Request, res: Response) => {
 			updated_at: new Date(),
 		});
 
-		return successHandler(res, "Image uploaded to S3 successfully", uploadedFile, 200);
+		const sendData = {
+			id: resData.dataValues.id,
+			...uploadedFile,
+		}
+		return successHandler(res, "Image uploaded to S3 successfully", sendData, 200);
 	} catch (error: any) {
 		console.error("Error uploading image:", error);
 		return errorHandler(res, error.message || "Image upload failed", {}, 500);
