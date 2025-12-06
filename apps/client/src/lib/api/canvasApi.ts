@@ -76,7 +76,7 @@ export interface CanvasFilters {
     page?: number;
     limit?: number;
     search?: string;
-    isPinned?: boolean;
+    pinned?: boolean;
     id?: number;
     canvas_uid?: string;
     note_id?: number;
@@ -108,7 +108,7 @@ export const fetchCanvasList = async (
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
     if (filters?.search) params.append('search', filters.search);
-    if (filters?.isPinned !== undefined) params.append('isPinned', filters.isPinned.toString());
+    if (filters?.pinned !== undefined) params.append('pinned', filters.pinned.toString());
     if (filters?.id) params.append('id', filters.id.toString());
     if (filters?.canvas_uid) params.append('canvas_uid', filters.canvas_uid);
     if (filters?.note_id) params.append('note_id', filters.note_id.toString());

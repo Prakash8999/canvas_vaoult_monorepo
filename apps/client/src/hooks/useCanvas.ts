@@ -82,61 +82,11 @@ export const useCreateCanvas = (
         onMutate: async (newCanvas) => {
             // Cancel outgoing refetches
             await queryClient.cancelQueries({ queryKey: canvasKeys.lists() });
-
-            // Snapshot previous value
-            const previousCanvases = queryClient.getQueryData<CanvasListResponse>(
-                canvasKeys.list()
-            );
-
-            // Optimistically update cache
-            if (previousCanvases) {
-                const optimisticCanvas: Canvas = {
-                    id: Date.now(), // Temporary ID
-                    canvas_uid: `temp-${Date.now()}`,
-                    user_id: 0,
-                    title: newCanvas.title,
-                    canvas_data: newCanvas.canvas_data,
-                    document_data: newCanvas.document_data,
-                    viewport: newCanvas.viewport,
-                    pinned: newCanvas.pinned || false,
-                    note_id: newCanvas.note_id,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    note: null,
-                };
-
-                queryClient.setQueryData<CanvasListResponse>(canvasKeys.list(), {
-                    ...previousCanvases,
-                    canvases: [optimisticCanvas, ...previousCanvases.canvases],
-                    pagination: {
-                        ...previousCanvases.pagination,
-                        total: previousCanvases.pagination.total + 1,
-                    },
-                });
-            }
-
-            return { previousCanvases };
-        },
-        onError: (error, variables, context) => {
-            // Rollback on error
-            if (context?.previousCanvases) {
-                queryClient.setQueryData(canvasKeys.list(), context.previousCanvases);
-            }
+            return {};
         },
         onSuccess: (newCanvas) => {
-            // Update cache with real data
-            queryClient.setQueryData<CanvasListResponse>(
-                canvasKeys.list(),
-                (old) => {
-                    if (!old) return old;
-                    return {
-                        ...old,
-                        canvases: old.canvases.map((canvas) =>
-                            canvas.id === newCanvas.id ? newCanvas : canvas
-                        ),
-                    };
-                }
-            );
+            // Invalidate to fetch fresh data with correct pagination/sorting
+            queryClient.invalidateQueries({ queryKey: canvasKeys.lists() });
 
             // Set detail cache
             queryClient.setQueryData(canvasKeys.detail(newCanvas.canvas_uid), newCanvas);
@@ -164,16 +114,21 @@ export const useUpdateCanvas = (
             // Cancel outgoing refetches
             await queryClient.cancelQueries({ queryKey: canvasKeys.all });
 
-            // Snapshot previous values
-            const previousList = queryClient.getQueryData<CanvasListResponse>(
-                canvasKeys.list()
-            );
+            // Snapshot previous values (not perfect for generic rollback but okay for most cases)
+            // Ideally we'd rollback all queries, but invalidation on error is safer
 
-            // Determine UID: use provided uid or try to find it in the list
+            // Determine UID if possible for detail update
             let targetUid = uid;
-            if (!targetUid && previousList) {
-                const canvasInList = previousList.canvases.find((c) => c.id === id);
-                targetUid = canvasInList?.canvas_uid;
+            if (!targetUid) {
+                // Try to find it in any list
+                const queries = queryClient.getQueriesData<CanvasListResponse>({ queryKey: canvasKeys.lists() });
+                for (const [, list] of queries) {
+                    const found = list?.canvases.find(c => c.id === id);
+                    if (found) {
+                        targetUid = found.canvas_uid;
+                        break;
+                    }
+                }
             }
 
             // Get previous detail if we have a UID
@@ -181,17 +136,18 @@ export const useUpdateCanvas = (
                 ? queryClient.getQueryData<Canvas>(canvasKeys.detail(targetUid))
                 : undefined;
 
-            // Optimistically update list cache
-            if (previousList) {
-                queryClient.setQueryData<CanvasListResponse>(canvasKeys.list(), {
-                    ...previousList,
-                    canvases: previousList.canvases.map((canvas) =>
+            // Optimistically update ALL list caches
+            queryClient.setQueriesData<CanvasListResponse>({ queryKey: canvasKeys.lists() }, (old) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    canvases: old.canvases.map((canvas) =>
                         canvas.id === id
                             ? { ...canvas, ...data, updated_at: new Date().toISOString() }
                             : canvas
                     ),
-                });
-            }
+                };
+            });
 
             // Optimistically update detail cache
             if (previousDetail && targetUid) {
@@ -205,13 +161,11 @@ export const useUpdateCanvas = (
                 );
             }
 
-            return { previousList, previousDetail, canvasUid: targetUid };
+            return { previousDetail, canvasUid: targetUid };
         },
         onError: (error, variables, context) => {
-            // Rollback on error
-            if (context?.previousList) {
-                queryClient.setQueryData(canvasKeys.list(), context.previousList);
-            }
+            // Invalidate on error to restore state
+            queryClient.invalidateQueries({ queryKey: canvasKeys.lists() });
             if (context?.previousDetail && context.canvasUid) {
                 queryClient.setQueryData(
                     canvasKeys.detail(context.canvasUid),
@@ -220,24 +174,14 @@ export const useUpdateCanvas = (
             }
         },
         onSuccess: (updatedCanvas) => {
-            // Update caches with real data
-            queryClient.setQueryData<CanvasListResponse>(
-                canvasKeys.list(),
-                (old) => {
-                    if (!old) return old;
-                    return {
-                        ...old,
-                        canvases: old.canvases.map((canvas) =>
-                            canvas.id === updatedCanvas.id ? updatedCanvas : canvas
-                        ),
-                    };
-                }
-            );
-
+            // Update detail cache
             queryClient.setQueryData(
                 canvasKeys.detail(updatedCanvas.canvas_uid),
                 updatedCanvas
             );
+
+            // Invalidate lists to ensure consistency (e.g. if pinning changed order)
+            queryClient.invalidateQueries({ queryKey: canvasKeys.lists() });
         },
         ...options,
     });
@@ -251,50 +195,38 @@ export const useDeleteCanvas = (
         { deletedId: number },
         Error,
         number,
-        { previousList?: CanvasListResponse; canvasUid?: string } // <--- Context Type
+        { canvasUid?: string }
     >) => {
     const queryClient = useQueryClient();
 
-    return useMutation<{ deletedId: number }, Error, number, { previousList?: CanvasListResponse; canvasUid?: string }>({
+    return useMutation<{ deletedId: number }, Error, number, { canvasUid?: string }>({
         mutationFn: deleteCanvas,
         onMutate: async (id) => {
             // Cancel outgoing refetches
             await queryClient.cancelQueries({ queryKey: canvasKeys.lists() });
 
-            // Snapshot previous value
-            const previousList = queryClient.getQueryData<CanvasListResponse>(
-                canvasKeys.list()
-            );
-
-            // Find canvas UID for detail cache removal
-            const canvasToDelete = previousList?.canvases.find((c) => c.id === id);
-
-            // Optimistically remove from list
-            if (previousList) {
-                queryClient.setQueryData<CanvasListResponse>(canvasKeys.list(), {
-                    ...previousList,
-                    canvases: previousList.canvases.filter((canvas) => canvas.id !== id),
+            // Optimistically remove from ALL lists
+            queryClient.setQueriesData<CanvasListResponse>({ queryKey: canvasKeys.lists() }, (old) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    canvases: old.canvases.filter((canvas) => canvas.id !== id),
                     pagination: {
-                        ...previousList.pagination,
-                        total: previousList.pagination.total - 1,
+                        ...old.pagination,
+                        total: Math.max(0, old.pagination.total - 1),
                     },
-                });
-            }
+                };
+            });
 
-            // Remove detail cache
-            if (canvasToDelete) {
-                queryClient.removeQueries({
-                    queryKey: canvasKeys.detail(canvasToDelete.canvas_uid),
-                });
-            }
-
-            return { previousList, canvasUid: canvasToDelete?.canvas_uid };
+            return {};
         },
         onError: (error, variables, context) => {
-            // Rollback on error
-            if (context?.previousList) {
-                queryClient.setQueryData(canvasKeys.list(), context.previousList);
-            }
+            // Invalidate to restore
+            queryClient.invalidateQueries({ queryKey: canvasKeys.lists() });
+        },
+        onSuccess: () => {
+            // Always invalidate for consistency
+            queryClient.invalidateQueries({ queryKey: canvasKeys.lists() });
         },
         ...options,
     });
