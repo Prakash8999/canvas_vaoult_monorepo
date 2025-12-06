@@ -99,17 +99,17 @@ export const updateCanvas = async (req: Request, res: Response) => {
         }
 
         return successHandler(res, "Canvas updated successfully", {
-            id: canvas.id,
-            canvas_uid: canvas.canvas_uid,
-            title: canvas.title,
-            note_id: canvas.note_id,
-            canvas_data: canvas.canvas_data,
-            document_data: canvas.document_data,
-            viewport: canvas.viewport,
-            pinned: canvas.pinned,
-            created_at: canvas.created_at,
-            updated_at: canvas.updated_at,
-            note: canvas.note || null,
+            // id: canvas.id,
+            // canvas_uid: canvas.canvas_uid,
+            // title: canvas.title,
+            // note_id: canvas.note_id,
+            // canvas_data: canvas.canvas_data,
+            // document_data: canvas.document_data,
+            // viewport: canvas.viewport,
+            // pinned: canvas.pinned,
+            // created_at: canvas.created_at,
+            // updated_at: canvas.updated_at,
+            // note: canvas.note || null,
         }, 200);
     } catch (error) {
         console.error("Error updating canvas:", error);

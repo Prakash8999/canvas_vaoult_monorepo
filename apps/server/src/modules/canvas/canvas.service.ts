@@ -118,7 +118,9 @@ export const getAllCanvasesService = async (
                     attributes: ['id', 'title', 'note_uid', 'created_at', 'updated_at'],
                     required: false
                 }
-            ]
+            ],
+            ['id', 'canvas_uid', 'user_id', 'note_id', 'title', 'pinned', 'created_at', 'updated_at']
+
         );
 
         // Cache using pipeline like notes service
@@ -194,7 +196,7 @@ export const updateCanvasService = async (
         if (!existingCanvas) {
             throw new Error("Canvas not found");
         }
-
+        console.log("note id ", data.note_id)
         // 2. If note_id is being updated, verify the note exists and belongs to user
         if (data.note_id !== undefined && data.note_id !== null) {
             const note = await Note.findOne({

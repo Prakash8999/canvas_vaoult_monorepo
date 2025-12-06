@@ -154,12 +154,9 @@ const CanvasPage = () => {
 
 			pendingChangesRef.current = currentPending;
 
-			// Update version refs ONLY if we saved canvas data
-			if (variables.data.canvas_data) {
-				const savedVersion = getSceneVersion(variables.data.canvas_data);
-				lastSavedVersionRef.current = savedVersion;
-				lastProcessedVersionRef.current = savedVersion;
-			}
+			// We do NOT update lastProcessedVersionRef here because it was already updated 
+			// in handleCanvasChange to the *raw* version that triggered this save. 
+			// Updating it here with the *cleaned* version (no deleted items) causes a mismatch loop.
 		},
 		onError: (error) => {
 			console.error("Save failed:", error);
@@ -259,12 +256,14 @@ const CanvasPage = () => {
 								const currentFiles = currentFilesRef.current;
 
 								// Transform elements: Replace fileId with Asset ID
-								const elementsToSave = currentElements.map(el => {
-									if (el.type === 'image' && el.fileId && uploadedFilesMapRef.current[el.fileId]) {
-										return { ...el, fileId: uploadedFilesMapRef.current[el.fileId].id as FileId };
-									}
-									return el;
-								});
+								const elementsToSave = currentElements
+									.filter(el => !el.isDeleted)
+									.map(el => {
+										if (el.type === 'image' && el.fileId && uploadedFilesMapRef.current[el.fileId]) {
+											return { ...el, fileId: uploadedFilesMapRef.current[el.fileId].id as FileId };
+										}
+										return el;
+									});
 
 								// Transform files: Use Asset ID as key
 								const filesToSave = Object.entries(currentFiles).reduce((acc, [fid, f]) => {
@@ -336,16 +335,18 @@ const CanvasPage = () => {
 				}
 
 				// Prepare data for save, ensuring we use Asset IDs where available
-				const elementsToSave = typedElements.map(el => {
-					if (el.type === 'image' && el.fileId && uploadedFilesMapRef.current[el.fileId]) {
-						// Replace the temporary fileId with the Asset ID
-						return {
-							...el,
-							fileId: uploadedFilesMapRef.current[el.fileId].id as FileId
-						};
-					}
-					return el;
-				});
+				const elementsToSave = typedElements
+					.filter(el => !el.isDeleted)
+					.map(el => {
+						if (el.type === 'image' && el.fileId && uploadedFilesMapRef.current[el.fileId]) {
+							// Replace the temporary fileId with the Asset ID
+							return {
+								...el,
+								fileId: uploadedFilesMapRef.current[el.fileId].id as FileId
+							};
+						}
+						return el;
+					});
 
 				const filesToSave = files ? Object.entries(files).reduce((acc, [fid, f]) => {
 					const uploaded = uploadedFilesMapRef.current[fid];
@@ -434,6 +435,11 @@ const CanvasPage = () => {
 		scheduleAutoSave(false);
 	}, [scheduleAutoSave]);
 
+	const handleTitleSubmit = useCallback(() => {
+		setEditingName(false);
+		triggerSave();
+	}, [triggerSave]);
+
 	const [isPinning, setIsPinning] = useState(false);
 
 	const handleTogglePin = useCallback(() => {
@@ -493,7 +499,10 @@ const CanvasPage = () => {
 	const [localTitle, setLocalTitle] = useState('');
 
 	useEffect(() => {
-		if (canvas?.title && !editingName) setLocalTitle(canvas.title);
+		if (canvas?.title && !editingName) {
+			if (pendingChangesRef.current.title) return;
+			setLocalTitle(canvas.title);
+		}
 	}, [canvas?.title, editingName]);
 
 	useEffect(() => {
@@ -646,8 +655,8 @@ const CanvasPage = () => {
 										value={localTitle}
 										autoFocus
 										onChange={e => handleTitleChange(e.target.value)}
-										onBlur={() => setEditingName(false)}
-										onKeyDown={e => { if (e.key === 'Enter') setEditingName(false); }}
+										onBlur={handleTitleSubmit}
+										onKeyDown={e => { if (e.key === 'Enter') handleTitleSubmit(); }}
 									/>
 								) : (
 									<span
