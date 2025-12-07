@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle, Shield, Zap, Sparkles, FileText, Palette, Bot, Gauge, Globe, Lock, Database } from 'lucide-react';
+import { ArrowRight, CheckCircle, Zap, Sparkles, FileText, Palette, Bot, Gauge, Globe, Layout, Brain, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,45 +22,45 @@ export function LandingPage() {
   const features = [
     {
       icon: FileText,
-      title: "Rich Notes",
-      description: "Obsidian-style backlinks, graph view, and block-based editing for connected thinking.",
+      title: "Advanced Note Editor",
+      description: "Rich block-based editing, backlinks, knowledge graph, and runnable code blocks.",
       gradient: "from-blue-500 to-blue-600"
     },
     {
       icon: Palette,
       title: "Infinite Canvas",
-      description: "Unlimited whiteboard space for ideas, architecture diagrams, and visual brainstorming.",
+      description: "Eraser.io-style drawing tools, shapes, sticky notes, and infinite pan & zoom.",
       gradient: "from-purple-500 to-purple-600"
     },
     {
       icon: Bot,
       title: "AI Assistant",
-      description: "Summarize content, generate mind maps, create auto-diagrams, and improve your writing.",
+      description: "Auto-generate mind maps, diagrams, and summaries with context-aware AI.",
       gradient: "from-emerald-500 to-emerald-600"
     },
     {
-      icon: Gauge,
+      icon: Zap,
       title: "Quick Capture",
-      description: "Instantly jot down ideas without breaking your flow, with smart organization.",
+      description: "Instantly capture ideas via text, voice, or image, and convert them to full notes.",
       gradient: "from-orange-500 to-orange-600"
     }
   ];
 
   const benefits = [
     {
-      icon: Lock,
-      title: "Privacy First",
-      description: "Your data stays on your device. No cloud storage unless you choose it."
+      icon: Layers,
+      title: "Unified Workspace",
+      description: "Seamlessly switch between text docs and infinite canvas. All your tools in one place."
+    },
+    {
+      icon: Brain,
+      title: "Thinking Tools",
+      description: "Visual knowledge graphs and bidirectional links help you connect complex ideas."
     },
     {
       icon: Globe,
-      title: "Works Offline",
-      description: "Full functionality without internet. Sync when you're ready."
-    },
-    {
-      icon: Database,
-      title: "No Vendor Lock-in",
-      description: "Export your data anytime. Own your content forever."
+      title: "Build & Share",
+      description: "Turn your sketches and notes into polished documents ready for the world."
     }
   ];
 
@@ -76,7 +76,7 @@ export function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
       <LandingHeader onSignIn={() => openAuth('signin')} onSignUp={() => openAuth('signup')} />
-      
+
       <main>
         {/* Hero Section */}
         <section className="relative overflow-hidden bg-background pt-20 pb-32">
@@ -90,31 +90,31 @@ export function LandingPage() {
             >
               <Badge variant="secondary" className="mx-auto w-fit">
                 <Sparkles className="w-3 h-3 mr-1" />
-                Local-First Workspace
+                The Ultimate Creative Workspace
               </Badge>
-              
+
               <h1 className="text-5xl lg:text-7xl font-bold text-foreground leading-tight">
                 CanvasVault
-                <span className="block text-primary">Your Creative Space</span>
+                <span className="block text-primary">Where Ideas Take Shape</span>
               </h1>
-              
+
               <p className="text-xl lg:text-2xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-                Your local-first workspace for notes, canvases, and AI creativity.
-                <span className="block mt-2">Everything stays on your device, works offline, and syncs seamlessly when needed.</span>
+                A unified environment for thinking, writing, and visualizing.
+                <span className="block mt-2">Combine advanced notes, infinite canvas, and AI to bring your ideas to life.</span>
               </p>
-              
+
               <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg text-lg px-8"
                   onClick={handleRedirect}
                 >
                   Get Started Free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
+                <Button
+                  size="lg"
+                  variant="outline"
                   className="border-border hover:bg-accent text-lg px-8"
                 >
                   Try Demo
@@ -134,12 +134,12 @@ export function LandingPage() {
               transition={{ duration: 0.6 }}
               className="text-center space-y-4 mb-16"
             >
-              <h2 className="text-4xl font-bold text-foreground">Everything You Need</h2>
+              <h2 className="text-4xl font-bold text-foreground">Product Pillars</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                Powerful tools that work together seamlessly for your creative workflow
+                Four powerful modules designed to unlock your creative potential.
               </p>
             </motion.div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {features.map((feature, index) => (
                 <motion.div
@@ -183,7 +183,7 @@ export function LandingPage() {
                 Experience the power of integrated notes, canvas, and AI assistance
               </p>
             </motion.div>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -194,11 +194,11 @@ export function LandingPage() {
               >
                 <div className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 p-8 rounded-2xl border border-blue-500/20">
                   <FileText className="h-12 w-12 text-blue-500 mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">Notes Editor</h3>
-                  <p className="text-muted-foreground">Rich text editing with blocks, backlinks, and embedded canvases.</p>
+                  <h3 className="text-xl font-semibold mb-2">Advanced Editor</h3>
+                  <p className="text-muted-foreground">Rich text editing with blocks, code completion, and knowledge graph visualization.</p>
                 </div>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -208,11 +208,11 @@ export function LandingPage() {
               >
                 <div className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 p-8 rounded-2xl border border-purple-500/20">
                   <Palette className="h-12 w-12 text-purple-500 mb-4" />
-                  <h3 className="text-xl font-semibold mb-2">Canvas Workspace</h3>
-                  <p className="text-muted-foreground">Infinite whiteboard for diagrams, mind maps, and visual thinking.</p>
+                  <h3 className="text-xl font-semibold mb-2">Infinite Canvas</h3>
+                  <p className="text-muted-foreground">Pan, zoom, and draw with shapes, arrows, and sticky notes in an infinite space.</p>
                 </div>
               </motion.div>
-              
+
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -223,7 +223,7 @@ export function LandingPage() {
                 <div className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 p-8 rounded-2xl border border-emerald-500/20">
                   <Bot className="h-12 w-12 text-emerald-500 mb-4" />
                   <h3 className="text-xl font-semibold mb-2">AI Assistant</h3>
-                  <p className="text-muted-foreground">Smart assistance for writing, summarizing, and organizing ideas.</p>
+                  <p className="text-muted-foreground">Context-aware suggestions, auto-mind-maps, and instant summarization.</p>
                 </div>
               </motion.div>
             </div>
@@ -240,12 +240,12 @@ export function LandingPage() {
               transition={{ duration: 0.6 }}
               className="text-center space-y-4 mb-16"
             >
-              <h2 className="text-4xl font-bold text-foreground">Why Local-First?</h2>
+              <h2 className="text-4xl font-bold text-foreground">Why CanvasVault?</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                Your data, your device, your control. Experience the benefits of true data ownership.
+                A premium environment designed for clarity, creativity, and flow.
               </p>
             </motion.div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {benefits.map((benefit, index) => (
                 <motion.div
@@ -279,13 +279,13 @@ export function LandingPage() {
               className="space-y-8"
             >
               <h2 className="text-4xl lg:text-5xl font-bold text-foreground">
-                Ready to Start Creating?
+                Ready to Upgrade Your Workflow?
               </h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                Join thousands of creators, thinkers, and builders who've made CanvasVault their digital workspace.
+                Join a community of thinkers giving their ideas the space they deserve.
               </p>
-              <Button 
-                size="lg" 
+              <Button
+                size="lg"
                 className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg text-lg px-12"
                 onClick={() => openAuth('signup')}
               >
@@ -293,14 +293,14 @@ export function LandingPage() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
               <p className="text-sm text-muted-foreground">
-                No credit card required • Free forever • Export anytime
+                Free for individuals • Powerful for teams • Start creating today
               </p>
             </motion.div>
           </div>
         </section>
       </main>
 
-      <AuthModals 
+      <AuthModals
         open={showAuthModal}
         onOpenChange={setShowAuthModal}
         mode={authMode}
