@@ -2,33 +2,41 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
-  DialogDescription,
-  DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useWorkspaceStore } from '@/stores/workspace';
-import { useNoteMutations, useInfiniteNotes } from '@/hooks/useNotes';
-import { convertApiNoteToLocal } from '@/lib/api/notesApi';
+import {
+  useCreateQuickCapture,
+  useUpdateQuickCapture,
+  useQuickCaptureList
+} from '@/hooks/useQuickCapture';
 import { Mic, Image, Pin, Loader2 } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 
 export default function QuickCapture() {
   const quickOpen = useWorkspaceStore((s) => s.quickCaptureOpen);
   const toggleQuick = useWorkspaceStore((s) => s.toggleQuickCapture);
-  const { createNote, updateNote } = useNoteMutations();
-  const { data: notesData, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading: isLoadingNotes } = useInfiniteNotes(20);
+
+  // New Hooks
+  const { mutateAsync: createQC } = useCreateQuickCapture();
+  const { mutateAsync: updateQC } = useUpdateQuickCapture();
+
+  // Standard query for list (fetching 50 mostly recent for "Read All")
+  const { data: listData, isLoading: isLoadingList } = useQuickCaptureList(
+    { limit: 50, sort_by: 'updated_at', sort: 'desc' } as any, // Cast any if filters are slightly different or explicit
+    { enabled: quickOpen }
+  );
 
   const [activeTab, setActiveTab] = useState<'create' | 'read'>('create');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState(''); // HTML string
   const [pinned, setPinned] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const titleRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +46,7 @@ export default function QuickCapture() {
       // Default to create view
       setActiveTab('create');
       // Focus title if creating new
-      if (!editingNoteId) {
+      if (!editingId) {
         setTimeout(() => titleRef.current?.focus(), 50);
       }
     } else {
@@ -52,7 +60,7 @@ export default function QuickCapture() {
     setContent('');
     setPinned(false);
     setSaving(false);
-    setEditingNoteId(null);
+    setEditingId(null);
   };
 
   const handleCreateNew = () => {
@@ -76,36 +84,28 @@ export default function QuickCapture() {
         version: '2.28.2',
       };
 
-      if (editingNoteId) {
-        // Update existing note
-        await updateNote({
-          id: editingNoteId,
-          updates: {
+      if (editingId) {
+        // Update existing
+        await updateQC({
+          id: editingId,
+          data: {
             title: title || 'Untitled',
             content: noteContent,
-            isPinned: pinned ? 1 : 0,
+            pinned: pinned,
           }
         });
       } else {
-        // Create new note
-        const apiNote = await createNote({
+        // Create new
+        await createQC({
           title: title || 'Quick Note',
-          content: noteContent
+          content: noteContent,
+          pinned: pinned
         });
-
-        const localNote = convertApiNoteToLocal(apiNote);
-
-        if (pinned) {
-          await updateNote({
-            id: localNote.id,
-            updates: { isPinned: 1 }
-          });
-        }
       }
 
       handleDiscard(); // Close modal
     } catch (error) {
-      console.error('Failed to save quick note:', error);
+      console.error('Failed to save quick capture:', error);
     } finally {
       setSaving(false);
     }
@@ -144,8 +144,8 @@ export default function QuickCapture() {
       }).join('<br/>');
     }
     setContent(htmlContent);
-    setPinned(note.isPinned);
-    setEditingNoteId(note.id);
+    setPinned(note.pinned);
+    setEditingId(note.id);
     setActiveTab('create');
   };
 
@@ -174,7 +174,7 @@ export default function QuickCapture() {
     </>
   );
 
-  const allNotes = notesData?.pages.flatMap(p => Object.values(p.notes)) || [];
+  const allNotes = listData?.quickCaptures || [];
 
   return (
     <Dialog open={quickOpen} onOpenChange={() => toggleQuick()}>
@@ -184,14 +184,14 @@ export default function QuickCapture() {
           <DialogTitle className="sr-only">Quick Capture</DialogTitle>
 
           <Tabs value={activeTab} onValueChange={(v) => {
-            if (v === 'create' && activeTab === 'read' && !editingNoteId) {
+            if (v === 'create' && activeTab === 'read' && !editingId) {
               handleCreateNew();
             } else {
               setActiveTab(v as any);
             }
           }} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="create">{editingNoteId ? 'Edit Note' : 'Create'}</TabsTrigger>
+              <TabsTrigger value="create">{editingId ? 'Edit Note' : 'Create'}</TabsTrigger>
               <TabsTrigger value="read">Read All</TabsTrigger>
             </TabsList>
           </Tabs>
@@ -200,7 +200,6 @@ export default function QuickCapture() {
         <div className="flex-1 overflow-hidden px-6 pb-6">
           {activeTab === 'create' ? (
             <div className="flex flex-col h-full gap-4">
-              {/* Added gap removal or adjustment if needed, removed gap-3 for tighter control */}
               <Input
                 ref={titleRef}
                 placeholder="Title"
@@ -208,8 +207,6 @@ export default function QuickCapture() {
                 onChange={(e) => setTitle(e.target.value)}
                 className="bg-transparent border rounded-md px-3 text-lg font-semibold focus-visible:ring-1 focus-visible:ring-ring transition-all"
               />
-
-              {/* Divider removed as we are boxing elements */}
 
               <RichTextEditor
                 value={content}
@@ -221,15 +218,15 @@ export default function QuickCapture() {
 
               <div className="flex items-center justify-between pt-2">
                 <div className="text-xs text-muted-foreground">
-                  {editingNoteId ? 'Editing existing note' : new Date().toLocaleString()}
+                  {editingId ? 'Editing existing note' : new Date().toLocaleString()}
                 </div>
                 <div className="flex space-x-2">
-                  {editingNoteId && (
+                  {editingId && (
                     <Button variant="ghost" onClick={handleCreateNew}>Cancel Edit</Button>
                   )}
                   <Button variant="ghost" onClick={handleDiscard}>Discard</Button>
                   <Button onClick={handleSave} disabled={saving}>
-                    {saving ? (editingNoteId ? 'Updating...' : 'Saving...') : (editingNoteId ? 'Update Note' : 'Save to Notes')}
+                    {saving ? (editingId ? 'Updating...' : 'Saving...') : (editingId ? 'Update Note' : 'Save to Notes')}
                   </Button>
                 </div>
               </div>
@@ -237,12 +234,12 @@ export default function QuickCapture() {
           ) : (
             <div className="h-full flex flex-col">
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-                {isLoadingNotes && allNotes.length === 0 ? (
+                {isLoadingList && allNotes.length === 0 ? (
                   <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
                 ) : allNotes.length === 0 ? (
                   <div className="text-center p-4 text-muted-foreground">No notes found.</div>
                 ) : (
-                  allNotes.map((note: any) => (
+                  allNotes.map((note) => (
                     <div
                       key={note.id}
                       onClick={() => handleNoteClick(note)}
@@ -251,7 +248,7 @@ export default function QuickCapture() {
                       <div className="flex justify-between items-start mb-1">
                         <h4 className="font-medium truncate pr-2">{note.title || 'Untitled'}</h4>
                         <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(note.modifiedAt || note.createdAt).toLocaleDateString()}
+                          {new Date(note.updated_at || note.created_at).toLocaleDateString()}
                         </span>
                       </div>
                       <div className="text-sm text-muted-foreground line-clamp-2">
@@ -260,11 +257,6 @@ export default function QuickCapture() {
                       </div>
                     </div>
                   ))
-                )}
-                {hasNextPage && (
-                  <Button variant="ghost" className="w-full mt-2" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
-                    {isFetchingNextPage ? 'Loading...' : 'Load More'}
-                  </Button>
                 )}
               </div>
             </div>

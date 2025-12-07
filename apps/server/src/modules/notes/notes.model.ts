@@ -65,7 +65,7 @@ export const NoteSchema = z
 			example: [1, 2, 3],
 			description: 'Array of attachment IDs linked to this note',
 		}),
-		note_type: z.enum(['note', 'canvas']).default('note').openapi({
+		note_type: z.enum(['note', 'canvas', 'quick_capture']).default('note').openapi({
 			example: 'note',
 			description: 'Type of the note',
 		}),
@@ -143,6 +143,59 @@ export type NoteAttributes = z.infer<typeof NoteSchema>;
 export type NoteCreationAttributes = z.infer<typeof CreateNoteSchema>;
 export type NoteUpdateAttributes = z.infer<typeof UpdateNoteSchema>;
 
+export const GetNotesQuerySchema = z.object({
+	id: z.coerce.number().int().positive().optional().openapi({
+		example: 1,
+		description: 'Filter by note ID',
+	}),
+	note_uid: z.string().optional().openapi({
+		example: 'note-123',
+		description: 'Filter by note UID',
+	}),
+	title: z.string().optional().openapi({
+		example: 'My Note',
+		description: 'Filter by title',
+	}),
+	pinned: z.enum(['true', 'false']).transform(val => val === 'true').optional().openapi({
+		example: 'true',
+		description: 'Filter by pinned status',
+	}),
+	search: z.string().optional().openapi({
+		example: 'meeting',
+		description: 'Search across title (partial match)',
+	}),
+	page: z.coerce.number().int().positive().default(1).optional().openapi({
+		example: 1,
+		description: 'Page number',
+	}),
+	limit: z.coerce.number().int().positive().max(100).default(10).optional().openapi({
+		example: 10,
+		description: 'Items per page',
+	}),
+	sort: z.enum(['asc', 'desc']).default('desc').optional().openapi({
+		example: 'desc',
+		description: 'Sort order',
+	}),
+	sort_by: z.enum(['created_at', 'updated_at']).default('updated_at').optional().openapi({
+		example: 'updated_at',
+		description: 'Field to sort by',
+	}),
+	created_at: z.date().optional(),
+	updated_at: z.date().optional(),
+}).openapi({
+	title: 'GetNotesQueryParams',
+	description: 'Query parameters for filtering and paginating notes',
+});
+
+export const NoteIdParamsSchema = z.object({
+	id: z.string().regex(/^\d+$/, 'ID must be a positive integer').openapi({
+		example: '1',
+		description: 'Canvas ID (numeric string)',
+	}),
+});
+
+export type NoteQueryAttributes = z.infer<typeof GetNotesQuerySchema>;
+
 // --------------------
 // 🧩 Sequelize Model
 // --------------------
@@ -160,7 +213,7 @@ export class Note
 	public is_wiki_link!: boolean;
 	public version!: number;
 	public pinned!: boolean;
-	public note_type!: 'note' | 'canvas';
+	public note_type!: 'note' | 'canvas' | 'quick_capture';
 	public created_at!: Date;
 	public updated_at!: Date;
 	declare public child_wikilinks?: WikiLink[];
@@ -176,7 +229,7 @@ Note.init(
 			allowNull: false,
 		},
 		note_type: {
-			type: DataTypes.ENUM('note', 'canvas'),
+			type: DataTypes.ENUM('note', 'canvas', 'quick_capture'),
 			allowNull: false,
 			defaultValue: 'note',
 		},
