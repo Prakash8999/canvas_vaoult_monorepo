@@ -14,21 +14,31 @@ import {
   useUpdateQuickCapture,
   useQuickCaptureList
 } from '@/hooks/useQuickCapture';
-import { Mic, Image, Pin, Loader2 } from 'lucide-react';
+import { Mic, Image, Pin, Loader2, RefreshCw } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 
 export default function QuickCapture() {
   const quickOpen = useWorkspaceStore((s) => s.quickCaptureOpen);
   const toggleQuick = useWorkspaceStore((s) => s.toggleQuickCapture);
 
+  // Tracker for pending updates to minimize reads
+  const [hasPendingUpdates, setHasPendingUpdates] = useState(false);
+
   // New Hooks
   const { mutateAsync: createQC } = useCreateQuickCapture();
   const { mutateAsync: updateQC } = useUpdateQuickCapture();
 
   // Standard query for list (fetching 50 mostly recent for "Read All")
-  const { data: listData, isLoading: isLoadingList } = useQuickCaptureList(
-    { limit: 50, sort_by: 'updated_at', sort: 'desc' } as any, // Cast any if filters are slightly different or explicit
-    { enabled: quickOpen }
+  // DISABLED by default to prevent auto-fetching
+  const {
+    data: listData,
+    isLoading: isLoadingList,
+    refetch,
+    isFetched,
+    isRefetching
+  } = useQuickCaptureList(
+    { limit: 50, sort_by: 'updated_at', sort: 'desc' } as any,
+    { enabled: false } // Prevent auto-fetch
   );
 
   const [activeTab, setActiveTab] = useState<'create' | 'read'>('create');
@@ -54,6 +64,19 @@ export default function QuickCapture() {
       resetForm();
     }
   }, [quickOpen]);
+
+  // Sync logic: Fetch when switching to Read tab if needed
+  useEffect(() => {
+    if (activeTab === 'read') {
+      const shouldFetch = !isFetched || hasPendingUpdates;
+
+      if (shouldFetch) {
+        refetch().then(() => {
+          setHasPendingUpdates(false);
+        });
+      }
+    }
+  }, [activeTab, hasPendingUpdates, isFetched, refetch]);
 
   const resetForm = () => {
     setTitle('');
@@ -103,6 +126,7 @@ export default function QuickCapture() {
         });
       }
 
+      setHasPendingUpdates(true); // Mark as pending update
       handleDiscard(); // Close modal
     } catch (error) {
       console.error('Failed to save quick capture:', error);
@@ -234,29 +258,36 @@ export default function QuickCapture() {
           ) : (
             <div className="h-full flex flex-col">
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
-                {isLoadingList && allNotes.length === 0 ? (
+                {(isLoadingList || isRefetching) && allNotes.length === 0 ? (
                   <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
                 ) : allNotes.length === 0 ? (
                   <div className="text-center p-4 text-muted-foreground">No notes found.</div>
                 ) : (
-                  allNotes.map((note) => (
-                    <div
-                      key={note.id}
-                      onClick={() => handleNoteClick(note)}
-                      className="p-3 border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors group"
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <h4 className="font-medium truncate pr-2">{note.title || 'Untitled'}</h4>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(note.updated_at || note.created_at).toLocaleDateString()}
-                        </span>
+                  <div className="space-y-2">
+                    {isRefetching && allNotes.length > 0 && (
+                      <div className="flex justify-center py-1">
+                        <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
                       </div>
-                      <div className="text-sm text-muted-foreground line-clamp-2">
-                        {/* Simple text preview extraction */}
-                        {note.content?.blocks?.[0]?.data?.text?.replace(/<[^>]*>/g, '') || 'No content'}
+                    )}
+                    {allNotes.map((note) => (
+                      <div
+                        key={note.id}
+                        onClick={() => handleNoteClick(note)}
+                        className="p-3 border rounded-md cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors group"
+                      >
+                        <div className="flex justify-between items-start mb-1">
+                          <h4 className="font-medium truncate pr-2">{note.title || 'Untitled'}</h4>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(note.updated_at || note.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <div className="text-sm text-muted-foreground line-clamp-2">
+                          {/* Simple text preview extraction */}
+                          {note.content?.blocks?.[0]?.data?.text?.replace(/<[^>]*>/g, '') || 'No content'}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
