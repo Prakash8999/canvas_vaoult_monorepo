@@ -14,7 +14,7 @@ import {
   useUpdateQuickCapture,
   useQuickCaptureList
 } from '@/hooks/useQuickCapture';
-import { Mic, Image, Pin, Loader2, RefreshCw } from 'lucide-react';
+import { Mic, Image, Pin, Loader2, RefreshCw, Search, X } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 
 export default function QuickCapture() {
@@ -24,11 +24,19 @@ export default function QuickCapture() {
   // Tracker for pending updates to minimize reads
   const [hasPendingUpdates, setHasPendingUpdates] = useState(false);
 
+  // Pagination state
+  const [pageIndex, setPageIndex] = useState(0);
+  const pageSize = 10;
+
+  // Search state
+  const [searchInput, setSearchInput] = useState(''); // User's input
+  const [debouncedSearch, setDebouncedSearch] = useState(''); // Debounced value sent to API
+
   // New Hooks
   const { mutateAsync: createQC } = useCreateQuickCapture();
   const { mutateAsync: updateQC } = useUpdateQuickCapture();
 
-  // Standard query for list (fetching 50 mostly recent for "Read All")
+  // Standard query for list (fetching 10 items per page for "Read All")
   // DISABLED by default to prevent auto-fetching
   const {
     data: listData,
@@ -37,7 +45,13 @@ export default function QuickCapture() {
     isFetched,
     isRefetching
   } = useQuickCaptureList(
-    { limit: 50, sort_by: 'updated_at', sort: 'desc' } as any,
+    {
+      limit: pageSize,
+      page: pageIndex + 1,
+      search: debouncedSearch || undefined,
+      sort_by: 'updated_at',
+      sort: 'desc'
+    } as any,
     { enabled: false } // Prevent auto-fetch
   );
 
@@ -51,6 +65,24 @@ export default function QuickCapture() {
   const titleRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Debounce search input: wait 2 seconds after user stops typing
+  useEffect(() => {
+    // Only debounce if search has at least 3 characters
+    if (searchInput.length >= 3) {
+      const timer = setTimeout(() => {
+        setDebouncedSearch(searchInput);
+        setPageIndex(0); // Reset to first page when search changes
+      }, 2000); // 2 second debounce
+
+      return () => clearTimeout(timer);
+    }
+    // If search is cleared (empty), immediately update debounced value but don't trigger refetch
+    else if (searchInput.length === 0 && debouncedSearch !== '') {
+      setDebouncedSearch('');
+      setPageIndex(0);
+    }
+  }, [searchInput, debouncedSearch]);
+
   useEffect(() => {
     if (quickOpen) {
       // Default to create view
@@ -62,6 +94,8 @@ export default function QuickCapture() {
     } else {
       // Reset state on close
       resetForm();
+      setSearchInput(''); // Clear search when modal closes
+      setDebouncedSearch('');
     }
   }, [quickOpen]);
 
@@ -71,12 +105,26 @@ export default function QuickCapture() {
       const shouldFetch = !isFetched || hasPendingUpdates;
 
       if (shouldFetch) {
+        // Reset to first page when fetching fresh data
+        setPageIndex(0);
         refetch().then(() => {
           setHasPendingUpdates(false);
         });
       }
     }
   }, [activeTab, hasPendingUpdates, isFetched, refetch]);
+
+  // Refetch when page changes or search changes (only if already on Read tab and has been fetched before)
+  // BUT: Don't refetch if search was just cleared (going from something to empty)
+  const prevDebouncedSearchRef = useRef(debouncedSearch);
+  useEffect(() => {
+    const wasCleared = prevDebouncedSearchRef.current !== '' && debouncedSearch === '';
+    prevDebouncedSearchRef.current = debouncedSearch;
+
+    if (activeTab === 'read' && isFetched && !hasPendingUpdates && !wasCleared) {
+      refetch();
+    }
+  }, [pageIndex, debouncedSearch]);
 
   const resetForm = () => {
     setTitle('');
@@ -257,6 +305,38 @@ export default function QuickCapture() {
             </div>
           ) : (
             <div className="h-full flex flex-col">
+              {/* Search Bar */}
+              <div className="mb-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search by title (min 3 characters)..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    className="pl-10 pr-10 bg-background border-border"
+                  />
+                  {searchInput && (
+                    <button
+                      onClick={() => setSearchInput('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {searchInput.length > 0 && searchInput.length < 3 && (
+                  <p className="text-xs text-muted-foreground mt-1 ml-1">
+                    Type {3 - searchInput.length} more character{3 - searchInput.length !== 1 ? 's' : ''} to search
+                  </p>
+                )}
+                {searchInput.length >= 3 && searchInput !== debouncedSearch && (
+                  <p className="text-xs text-muted-foreground mt-1 ml-1">
+                    Searching in 2 seconds...
+                  </p>
+                )}
+              </div>
+
               <div className="flex-1 overflow-y-auto space-y-2 pr-2">
                 {(isLoadingList || isRefetching) && allNotes.length === 0 ? (
                   <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
@@ -290,6 +370,52 @@ export default function QuickCapture() {
                   </div>
                 )}
               </div>
+
+              {/* Pagination Controls */}
+              {listData && listData.pagination.totalPages > 0 && (
+                <div className="flex flex-col items-center gap-3 pt-4 border-t mt-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+                      disabled={pageIndex === 0 || isRefetching}
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                    >
+                      Prev
+                    </Button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: listData.pagination.totalPages }).map((_, idx) => (
+                        <Button
+                          key={idx}
+                          onClick={() => setPageIndex(idx)}
+                          disabled={isRefetching}
+                          variant={idx === pageIndex ? 'default' : 'outline'}
+                          size="sm"
+                          className={`h-8 w-8 p-0 ${idx === pageIndex ? 'bg-primary text-white' : ''}`}
+                        >
+                          {idx + 1}
+                        </Button>
+                      ))}
+                    </div>
+
+                    <Button
+                      onClick={() => setPageIndex((p) => p + 1)}
+                      disabled={pageIndex >= listData.pagination.totalPages - 1 || isRefetching}
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                    >
+                      Next
+                    </Button>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    Page {pageIndex + 1} of {listData.pagination.totalPages} • {listData.pagination.total} total notes
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
