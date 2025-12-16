@@ -1,23 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, 
-  Send, 
-  Sparkles, 
-  FileText, 
-  Image, 
+import {
+  X,
+  Send,
+  Sparkles,
+  FileText,
+  Image,
   Brain,
   Wand2,
   MessageCircle,
   ChevronDown,
-  Loader2
+  Loader2,
+  Coins,
+  Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useWorkspaceStore } from '@/stores/workspace';
+import { useAICredits, useAIConstraints, useGenerateAI } from '@/hooks/useAI';
+import { toast } from 'sonner';
 
 interface AiMessage {
   id: string;
@@ -58,12 +68,59 @@ export function AiDrawer() {
   const { aiDrawerOpen, toggleAiDrawer, currentNote } = useWorkspaceStore();
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [showPrompts, setShowPrompts] = useState(true);
+  const [selectedProvider, setSelectedProvider] = useState<'gemini' | 'perplexity'>('gemini');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash-exp');
+
+  // Ref for auto-scrolling
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Fetch AI data
+  const { data: credits, isLoading: creditsLoading, refetch: refetchCredits } = useAICredits();
+  const { data: constraints } = useAIConstraints();
+  const generateAI = useGenerateAI();
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, generateAI.isPending]);
+
+  // Update model when provider changes
+  useEffect(() => {
+    if (constraints?.supportedModels) {
+      const models = constraints.supportedModels[selectedProvider];
+      if (models && models.length > 0) {
+        setSelectedModel(models[0]);
+      }
+    }
+  }, [selectedProvider, constraints]);
+
+  // Refetch credits when drawer opens
+  useEffect(() => {
+    if (aiDrawerOpen) {
+      refetchCredits();
+    }
+  }, [aiDrawerOpen, refetchCredits]);
 
   const handleSendMessage = async (prompt?: string) => {
     const messageContent = prompt || input;
     if (!messageContent.trim()) return;
+
+    // Validate input length
+    if (constraints && messageContent.length > constraints.maxInputLength) {
+      toast.error('Input too long', {
+        description: `Maximum ${constraints.maxInputLength} characters allowed. Current: ${messageContent.length}`,
+      });
+      return;
+    }
+
+    // Check credits
+    if (credits !== undefined && credits <= 0) {
+      toast.error('No AI credits remaining', {
+        description: 'You have run out of AI credits. Please contact support to get more.',
+      });
+      return;
+    }
 
     const userMessage: AiMessage = {
       id: crypto.randomUUID(),
@@ -74,43 +131,41 @@ export function AiDrawer() {
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
-    setIsLoading(true);
     setShowPrompts(false);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Call AI API with selected provider and model
+      const response = await generateAI.mutateAsync({
+        provider: selectedProvider,
+        model: selectedModel,
+        input: messageContent,
+      });
+
+
+
+
       const aiMessage: AiMessage = {
         id: crypto.randomUUID(),
         type: 'assistant',
-        content: getSimulatedResponse(messageContent),
+        content: response.content,
         timestamp: new Date(),
-        suggestions: [
-          "Expand on this idea",
-          "Create a visual diagram",
-          "Add more examples"
-        ]
       };
 
       setMessages(prev => [...prev, aiMessage]);
-      setIsLoading(false);
-    }, 1500);
-  };
-
-  const getSimulatedResponse = (prompt: string): string => {
-    if (prompt.toLowerCase().includes('summarize')) {
-      return `Here's a summary of your note:\n\n• **Main concept**: The core idea revolves around the key themes you've outlined\n• **Supporting details**: Several important points that reinforce the main argument\n• **Next steps**: Consider expanding on the practical applications\n\nWould you like me to help you develop any of these points further?`;
+    } catch (error) {
+      // Error is handled by the mutation's onError
+      console.error('AI generation error:', error);
     }
-    
-    if (prompt.toLowerCase().includes('mind map')) {
-      return `I can help you create a mind map structure:\n\n**Central Topic**: [Your main theme]\n├── Branch 1: Core concepts\n│   ├── Sub-concept A\n│   └── Sub-concept B\n├── Branch 2: Applications\n│   ├── Practical use\n│   └── Real-world examples\n└── Branch 3: Future considerations\n\nWould you like me to convert this into an actual canvas diagram?`;
-    }
-
-    return `I understand you'd like help with: "${prompt}"\n\nBased on your current note, here are some suggestions:\n\n• I can help you restructure the content for better clarity\n• We could explore different perspectives on this topic\n• I can suggest additional resources or examples\n\nWhat specific aspect would you like to focus on?`;
   };
 
   const handlePromptClick = (prompt: typeof AI_PROMPTS[0]) => {
     handleSendMessage(prompt.prompt);
   };
+
+  const inputLength = input.length;
+  const maxLength = constraints?.maxInputLength || 300;
+  const isInputTooLong = inputLength > maxLength;
+  const hasNoCredits = credits !== undefined && credits <= 0;
 
   return (
     <AnimatePresence>
@@ -156,12 +211,77 @@ export function AiDrawer() {
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+
+              {/* Credits Display */}
+              <div className="mt-3 flex items-center justify-between p-2 bg-workspace-hover rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <Coins className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">AI Credits</span>
+                </div>
+                {creditsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Badge variant={hasNoCredits ? 'destructive' : 'secondary'} className="font-mono">
+                    {credits ?? 0}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Provider & Model Selection */}
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                  <Settings2 className="h-3 w-3" />
+                  <span>AI Configuration</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Provider Selection */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Provider</label>
+                    <Select
+                      value={selectedProvider}
+                      onValueChange={(value: 'gemini' | 'perplexity') => setSelectedProvider(value)}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-workspace-hover border-workspace-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {constraints?.supportedProviders.map((provider) => (
+                          <SelectItem key={provider} value={provider} className="text-xs">
+                            {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Model Selection */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Model</label>
+                    <Select
+                      value={selectedModel}
+                      onValueChange={setSelectedModel}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-workspace-hover border-workspace-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {constraints?.supportedModels[selectedProvider]?.map((model) => (
+                          <SelectItem key={model} value={model} className="text-xs">
+                            {model}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Content */}
-            <div className="flex-1 flex flex-col">
-              <ScrollArea className="flex-1">
-                <div className="p-4 space-y-4">
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="space-y-4">
                   {/* Quick Prompts */}
                   {showPrompts && messages.length === 0 && (
                     <motion.div
@@ -169,7 +289,7 @@ export function AiDrawer() {
                       animate={{ opacity: 1, y: 0 }}
                       className="space-y-3"
                     >
-                      <div className="flex items-center justify-between">
+                      {/* <div className="flex items-center justify-between">
                         <h4 className="text-sm font-medium text-foreground">Quick Actions</h4>
                         <Button
                           variant="ghost"
@@ -179,16 +299,16 @@ export function AiDrawer() {
                         >
                           <ChevronDown className="h-3 w-3" />
                         </Button>
-                      </div>
-                      
-                      <div className="grid gap-2">
+                      </div> */}
+
+                      {/* <div className="grid gap-2">
                         {AI_PROMPTS.map((prompt) => (
                           <Button
                             key={prompt.title}
                             variant="ghost"
                             onClick={() => handlePromptClick(prompt)}
                             className="h-auto p-3 flex flex-col items-start space-y-1 text-left hover:bg-workspace-hover border border-workspace-border"
-                            disabled={!currentNote}
+                            disabled={!currentNote || hasNoCredits}
                           >
                             <div className="flex items-center space-x-2">
                               <prompt.icon className="h-4 w-4 text-primary" />
@@ -199,11 +319,17 @@ export function AiDrawer() {
                             </span>
                           </Button>
                         ))}
-                      </div>
-                      
+                      </div> */}
+
                       {!currentNote && (
                         <div className="text-center text-sm text-muted-foreground py-4">
                           Open a note to get AI assistance
+                        </div>
+                      )}
+
+                      {hasNoCredits && (
+                        <div className="text-center text-sm text-destructive py-4">
+                          No AI credits remaining
                         </div>
                       )}
                     </motion.div>
@@ -218,36 +344,16 @@ export function AiDrawer() {
                         animate={{ opacity: 1, y: 0 }}
                         className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
-                        <div className={`max-w-[85%] rounded-lg p-3 ${
-                          message.type === 'user' 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'bg-workspace-hover border border-workspace-border'
-                        }`}>
+                        <div className={`max-w-[85%] rounded-lg p-3 ${message.type === 'user'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-workspace-hover border border-workspace-border'
+                          }`}>
                           <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-                          
-                          {message.suggestions && (
-                            <div className="mt-3 space-y-2">
-                              <Separator />
-                              <div className="text-xs text-muted-foreground">Suggestions:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {message.suggestions.map((suggestion, index) => (
-                                  <Badge
-                                    key={index}
-                                    variant="secondary"
-                                    className="cursor-pointer hover:bg-primary hover:text-primary-foreground text-xs"
-                                    onClick={() => handleSendMessage(suggestion)}
-                                  >
-                                    {suggestion}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       </motion.div>
                     ))}
-                    
-                    {isLoading && (
+
+                    {generateAI.isPending && (
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -259,9 +365,12 @@ export function AiDrawer() {
                         </div>
                       </motion.div>
                     )}
+
+                    {/* Scroll anchor */}
+                    <div ref={messagesEndRef} />
                   </div>
                 </div>
-              </ScrollArea>
+              </div>
 
               {/* Input */}
               <div className="p-4 border-t border-workspace-border">
@@ -277,23 +386,22 @@ export function AiDrawer() {
                       }
                     }}
                     className="min-h-[60px] resize-none bg-workspace-hover border-workspace-border text-foreground placeholder:text-muted-foreground"
-                    disabled={isLoading}
+                    disabled={generateAI.isPending || hasNoCredits}
                   />
                   <Button
                     onClick={() => handleSendMessage()}
-                    disabled={!input.trim() || isLoading}
+                    disabled={!input.trim() || generateAI.isPending || isInputTooLong || hasNoCredits}
                     className="self-end bg-ai-gradient hover:bg-ai-gradient/90 text-white shadow-glow"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
                 </div>
-                
+
                 <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
                   <span>Press Enter to send, Shift+Enter for new line</span>
-                  <Badge variant="secondary" className="text-xs">
-                    <MessageCircle className="mr-1 h-3 w-3" />
-                    Mock AI
-                  </Badge>
+                  <span className={isInputTooLong ? 'text-destructive' : ''}>
+                    {inputLength}/{maxLength}
+                  </span>
                 </div>
               </div>
             </div>

@@ -95,6 +95,11 @@ export const UserSchema = z.object({
 		example: 'https://cdn.example.com/avatar.jpg',
 		description: 'Profile picture URL of the user',
 	}),
+
+	ai_credits: z.number().int().min(0).default(10).openapi({
+		example: 10,
+		description: 'Number of AI credits available for the user',
+	}),
 }).openapi({
 	title: 'User',
 	description: 'Represents a registered user in the system',
@@ -158,6 +163,7 @@ export class User
 	declare profile_url?: string | null;
 	declare block: boolean;
 	declare blocked_on?: Date | null;
+	declare ai_credits: number;
 	declare created_at: Date;
 	declare updated_at: Date;
 }
@@ -225,6 +231,11 @@ User.init(
 		blocked_on: {
 			type: DataTypes.DATE,
 			allowNull: true,
+		},
+		ai_credits: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
+			defaultValue: 10,
 		},
 		created_at: {
 			type: DataTypes.DATE,

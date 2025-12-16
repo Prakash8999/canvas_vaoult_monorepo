@@ -28,6 +28,7 @@ import assetRoutes from './modules/assets/asset.route';
 import noteRoutes from './modules/notes/notes.route';
 import canvasRoute from './modules/canvas/canvas.routes'
 import qcRoute from './modules/quick-capture/qc.routes'
+import aiRoute from './modules/ai/ai.route';
 // Use routes
 
 import redisClient, { connectRedis } from './config/redis';
@@ -62,6 +63,7 @@ app.use(`${apiV1}/assets`, assetRoutes);
 app.use(`${apiV1}/note`, noteRoutes);
 app.use(`${apiV1}/canvas`, canvasRoute)
 app.use(`${apiV1}/quick-capture`, qcRoute)
+app.use(`${apiV1}/ai`, aiRoute);
 
 app.listen(port, host, () => {
   console.log(`[ ready ] http://${host}:${port}`);
