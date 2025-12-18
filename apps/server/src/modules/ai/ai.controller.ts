@@ -27,22 +27,8 @@ export const generateAIResponse = async (req: Request, res: Response) => {
 
         const userId = req.user.userId;
 
-        // Get API key from environment
-        // In Phase 3 (BYOK), this will come from user's stored keys
-        const { provider } = req.body;
-        const apiKey = getProviderApiKey(provider);
-
-        if (!apiKey) {
-            return errorHandler(
-                res,
-                'API key not configured',
-                { provider },
-                500
-            );
-        }
-
-        // Execute AI request
-        const response = await AIService.executeRequest(userId, req.body, apiKey);
+        // Execute AI request (key resolution handles internally)
+        const response = await AIService.executeRequest(userId, req.body);
 
         return successHandler(
             res,
@@ -147,17 +133,4 @@ export const getConstraints = async (req: Request, res: Response) => {
     }
 };
 
-/**
- * Helper function to get API key for provider
- * In Phase 3, this will be replaced with user's own keys
- */
-function getProviderApiKey(provider: string): string | undefined {
-    switch (provider) {
-        case 'gemini':
-            return process.env.GEMINI_API_KEY;
-        case 'perplexity':
-            return process.env.PERPLEXITY_API_KEY;
-        default:
-            return undefined;
-    }
-}
+

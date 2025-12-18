@@ -69,6 +69,7 @@ export interface AIResponse {
 export interface AIServiceResponse extends AIResponse {
     remainingCredits: number;
     creditsUsed: number;
+    usingCustomKey: boolean; // Flag to indicate if BYOK is being used
 }
 
 // -----------------------------
