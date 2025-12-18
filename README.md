@@ -10,6 +10,33 @@
 
 [Click here to finish setting up your workspace!](https://cloud.nx.app/connect/Y5xTL9xSO1)
 
+## 🚀 Deploying to Vercel
+
+This monorepo is configured for **separate deployments** of the client and server to Vercel.
+
+### Quick Start
+```bash
+# Deploy Client
+cd apps/client && vercel --prod
+
+# Deploy Server
+cd apps/server && vercel --prod
+```
+
+### 📚 Deployment Documentation
+- **[Quick Start Guide](./DEPLOYMENT_QUICKSTART.md)** - Get started quickly
+- **[Complete Deployment Guide](./VERCEL_DEPLOYMENT_GUIDE.md)** - Detailed step-by-step instructions
+- **[Architecture Overview](./DEPLOYMENT_ARCHITECTURE.md)** - Visual diagrams and flow
+- **[Summary of Changes](./DEPLOYMENT_SUMMARY.md)** - What was configured
+
+### 📝 Before Deploying
+1. Install Vercel CLI: `npm install -g vercel`
+2. Set up environment variables (see `.env.example` files)
+3. Configure CORS to allow your client URL
+4. Update API base URL in client
+
+For detailed instructions, see the [Deployment Quick Start Guide](./DEPLOYMENT_QUICKSTART.md).
+
 
 ## Run tasks
 
