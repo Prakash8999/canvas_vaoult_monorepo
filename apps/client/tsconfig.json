@@ -1,5 +1,4 @@
 {
-  "extends": "../../tsconfig.base.json",
   "files": [],
   "references": [
     {
@@ -19,11 +18,21 @@
         "./src/*"
       ]
     },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
+    "target": "ES2020",
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "skipLibCheck": true,
     "allowJs": true,
+    "isolatedModules": true,
+    "noImplicitAny": false,
+    "noUnusedParameters": false,
     "noUnusedLocals": false,
-    "strictNullChecks": false
+    "strictNullChecks": false,
+    "noFallthroughCasesInSwitch": false
   }
 }
