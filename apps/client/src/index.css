@@ -1,6 +1,4 @@
 @import './styles/skeleton-loading.css';
-
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
