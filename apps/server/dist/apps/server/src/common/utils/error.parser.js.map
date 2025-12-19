@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../../src/common/utils/error.parser.ts"],
+  "sourcesContent": ["// utils/errorParser.ts\r\nimport { ZodError } from \"zod\";\r\nimport { ValidationError as SequelizeValidationError } from \"sequelize\";\r\n\r\nexport function parseError(err: any): { message: string; statusCode: number } {\r\n  // Zod validation error\r\n  if (err instanceof ZodError) {\r\n    const message = err.issues?.[0]?.message || \"Invalid input data\";\r\n    return { message, statusCode: 400 };\r\n  }\r\n\r\n  // Sequelize validation error\r\n  if (err instanceof SequelizeValidationError) {\r\n    const message = err.errors?.[0]?.message || \"Database validation failed\";\r\n    return { message, statusCode: 400 };\r\n  }\r\n\r\n  // Custom error (manually thrown)\r\n  if (err.statusCode && err.message) {\r\n    return { message: err.message, statusCode: err.statusCode };\r\n  }\r\n\r\n  // Default fallback\r\n  return { message: err.message || \"Internal Server Error\", statusCode: 500 };\r\n}"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AACA,iBAAyB;AACzB,uBAA4D;AAErD,SAAS,WAAW,KAAmD;AAE5E,MAAI,eAAe,qBAAU;AAC3B,UAAM,UAAU,IAAI,SAAS,CAAC,GAAG,WAAW;AAC5C,WAAO,EAAE,SAAS,YAAY,IAAI;AAAA,EACpC;AAGA,MAAI,eAAe,iBAAAA,iBAA0B;AAC3C,UAAM,UAAU,IAAI,SAAS,CAAC,GAAG,WAAW;AAC5C,WAAO,EAAE,SAAS,YAAY,IAAI;AAAA,EACpC;AAGA,MAAI,IAAI,cAAc,IAAI,SAAS;AACjC,WAAO,EAAE,SAAS,IAAI,SAAS,YAAY,IAAI,WAAW;AAAA,EAC5D;AAGA,SAAO,EAAE,SAAS,IAAI,WAAW,yBAAyB,YAAY,IAAI;AAC5E;",
+  "names": ["SequelizeValidationError"]
+}

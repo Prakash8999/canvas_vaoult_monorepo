@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../src/config/database.ts"],
+  "sourcesContent": ["import { Sequelize } from \"sequelize\";\r\n\r\nif (!process.env.PSQL_URI) {\r\n\tthrow new Error(\"PSQL_URI is not defined\");\r\n}\t\r\n\r\nconst sequelize = new Sequelize(process.env.PSQL_URI, {\r\n\tdialect: \"postgres\",\r\n\tlogging: true,\r\n});\r\n\r\n\r\nconst syncDb = { force: false, alter: false };\r\n\r\nsequelize.sync(syncDb).then(() => {\r\n\tconsole.log(\"DB connected\");\r\n}).catch((err) => {\r\n\tconsole.log(\"Error: \", err);\r\n});\r\n\r\nexport default sequelize;"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,uBAA0B;AAE1B,IAAI,CAAC,QAAQ,IAAI,UAAU;AAC1B,QAAM,IAAI,MAAM,yBAAyB;AAC1C;AAEA,MAAM,YAAY,IAAI,2BAAU,QAAQ,IAAI,UAAU;AAAA,EACrD,SAAS;AAAA,EACT,SAAS;AACV,CAAC;AAGD,MAAM,SAAS,EAAE,OAAO,OAAO,OAAO,MAAM;AAE5C,UAAU,KAAK,MAAM,EAAE,KAAK,MAAM;AACjC,UAAQ,IAAI,cAAc;AAC3B,CAAC,EAAE,MAAM,CAAC,QAAQ;AACjB,UAAQ,IAAI,WAAW,GAAG;AAC3B,CAAC;AAED,IAAO,mBAAQ;",
+  "names": []
+}

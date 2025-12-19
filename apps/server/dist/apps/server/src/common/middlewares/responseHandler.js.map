@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../../src/common/middlewares/responseHandler.ts"],
+  "sourcesContent": ["// src/middleware/responseHandler.ts\r\nimport { Response } from \"express\";\r\nimport { error, success } from \"../utils/responseStructure\";\r\n\r\nexport const successHandler = <T>(\r\n  res: Response,\r\n  message: string,\r\n  results: T,\r\n  statusCode: number,\r\n  meta?: any\r\n) => {\r\n  return res.status(statusCode).json(success<T>(message, results, statusCode, meta));\r\n};\r\n\r\nexport const errorHandler = (res: Response, message: string, err: any, statusCode: number) => {\r\n  return res.status(statusCode).json(error(message, statusCode, err));\r\n};"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAEA,+BAA+B;AAExB,MAAM,iBAAiB,CAC5B,KACA,SACA,SACA,YACA,SACG;AACH,SAAO,IAAI,OAAO,UAAU,EAAE,SAAK,kCAAW,SAAS,SAAS,YAAY,IAAI,CAAC;AACnF;AAEO,MAAM,eAAe,CAAC,KAAe,SAAiB,KAAU,eAAuB;AAC5F,SAAO,IAAI,OAAO,UAAU,EAAE,SAAK,gCAAM,SAAS,YAAY,GAAG,CAAC;AACpE;",
+  "names": []
+}

@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../../../src/modules/ai/chat/chat.routes.ts"],
+  "sourcesContent": ["import { Router } from 'express';\r\nimport { ChatController } from './chat.controller';\r\nimport { authUser } from '../../../common/middlewares/auth/authMiddleware';\r\n\r\nconst router = Router();\r\n\r\n// Apply auth middleware to all chat routes\r\nrouter.use(authUser);\r\n\r\n// Chat CRUD\r\nrouter.post('/', ChatController.createChat);\r\nrouter.get('/', ChatController.getChats);\r\nrouter.get('/:id/messages', ChatController.getMessages);\r\nrouter.patch('/:id', ChatController.updateChat);\r\nrouter.delete('/:id', ChatController.deleteChat);\r\n\r\n// Message / AI Interaction\r\nrouter.post('/message', ChatController.sendMessage);\r\n\r\nexport default router;\r\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,qBAAuB;AACvB,kBAA+B;AAC/B,4BAAyB;AAEzB,MAAM,aAAS,uBAAO;AAGtB,OAAO,IAAI,8BAAQ;AAGnB,OAAO,KAAK,KAAK,2BAAe,UAAU;AAC1C,OAAO,IAAI,KAAK,2BAAe,QAAQ;AACvC,OAAO,IAAI,iBAAiB,2BAAe,WAAW;AACtD,OAAO,MAAM,QAAQ,2BAAe,UAAU;AAC9C,OAAO,OAAO,QAAQ,2BAAe,UAAU;AAG/C,OAAO,KAAK,YAAY,2BAAe,WAAW;AAElD,IAAO,sBAAQ;",
+  "names": []
+}

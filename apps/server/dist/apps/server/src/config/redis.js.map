@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../src/config/redis.ts"],
+  "sourcesContent": ["import { createClient } from 'redis';\r\n\r\n\r\nif (!process.env.REDIS_HOST) {\r\n  console.error('REDIS_HOST is not defined');\r\n  throw new Error('REDIS_HOST is not defined in environment variables');\r\n}\r\n\r\nconst redisClient = createClient({\r\n  url: process.env.REDIS_HOST ,\r\n});\r\n\r\nredisClient.on('error', (err) => {\r\n  console.error('Redis error:', err);\r\n});\r\n\r\nredisClient.on('ready', () => {\r\n  console.log('Redis client ready');\r\n});\r\n\r\nconst connectRedis = async () => {\r\n  if (!redisClient.isOpen) {\r\n    await redisClient.connect();\r\n  }\r\n};\r\n\r\nexport { connectRedis };\r\nexport default redisClient;\r\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,mBAA6B;AAG7B,IAAI,CAAC,QAAQ,IAAI,YAAY;AAC3B,UAAQ,MAAM,2BAA2B;AACzC,QAAM,IAAI,MAAM,oDAAoD;AACtE;AAEA,MAAM,kBAAc,2BAAa;AAAA,EAC/B,KAAK,QAAQ,IAAI;AACnB,CAAC;AAED,YAAY,GAAG,SAAS,CAAC,QAAQ;AAC/B,UAAQ,MAAM,gBAAgB,GAAG;AACnC,CAAC;AAED,YAAY,GAAG,SAAS,MAAM;AAC5B,UAAQ,IAAI,oBAAoB;AAClC,CAAC;AAED,MAAM,eAAe,YAAY;AAC/B,MAAI,CAAC,YAAY,QAAQ;AACvB,UAAM,YAAY,QAAQ;AAAA,EAC5B;AACF;AAGA,IAAO,gBAAQ;",
+  "names": []
+}

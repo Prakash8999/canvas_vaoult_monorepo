@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../src/jobs/producer.ts"],
+  "sourcesContent": ["import { Queue } from 'bullmq';\r\n\r\n\r\n// If REDIS_HOST contains a full redis URL (e.g. redis://localhost:6379)\r\n// BullMQ expects the connection `url` for that form. Passing the full URL\r\n// into `host` causes DNS lookups for the literal string 'redis://...'.\r\nexport const otpQueue = new Queue('send-otp', { connection: { url: process.env.REDIS_HOST }, defaultJobOptions:{\r\n\tremoveOnComplete:true,\r\n\t removeOnFail: { age: 3600 }\r\n} });\r\n\r\n"],
+  "mappings": ";;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,oBAAsB;AAMf,MAAM,WAAW,IAAI,oBAAM,YAAY,EAAE,YAAY,EAAE,KAAK,QAAQ,IAAI,WAAW,GAAG,mBAAkB;AAAA,EAC9G,kBAAiB;AAAA,EAChB,cAAc,EAAE,KAAK,KAAK;AAC5B,EAAE,CAAC;",
+  "names": []
+}

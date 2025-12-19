@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../../src/modules/assets/asset.route.ts"],
+  "sourcesContent": ["import { Router } from 'express';\r\nimport * as assetController from './asset.controller';\r\nimport { authUser } from '../../common/middlewares/auth/authMiddleware';\r\n\r\nconst router = Router();\r\n\r\n// All asset routes require authentication\r\nrouter.use(authUser);\r\n\r\n// Upload single image (only image files allowed)\r\nrouter.post('/upload', assetController.dynamicUploadImages, assetController.handleUploadImages);\r\n\r\n// Delete multiple files\r\nrouter.delete('/delete', assetController.deleteMultipleS3Files);\r\n\r\nexport default router;"],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA,qBAAuB;AACvB,sBAAiC;AACjC,4BAAyB;AAEzB,MAAM,aAAS,uBAAO;AAGtB,OAAO,IAAI,8BAAQ;AAGnB,OAAO,KAAK,WAAW,gBAAgB,qBAAqB,gBAAgB,kBAAkB;AAG9F,OAAO,OAAO,WAAW,gBAAgB,qBAAqB;AAE9D,IAAO,sBAAQ;",
+  "names": []
+}

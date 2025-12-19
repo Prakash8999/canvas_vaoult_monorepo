@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../src/modules/index.ts"],
+  "sourcesContent": ["// Import all models to ensure they are registered with Sequelize\r\nimport './notes/notes.model';\r\nimport './notes/syncEventLog.model';\r\nimport './users/users.model';\r\nimport './assets/asset.model';\r\n\r\n// Re-export for convenience\r\nexport { Note } from './notes/notes.model';\r\nexport { User } from './users/users.model';\r\nexport { default as ImageAssets } from './assets/asset.model';"],
+  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AAAA;AACA,mBAAO;AACP,0BAAO;AACP,mBAAO;AACP,mBAAO;AAGP,IAAAA,gBAAqB;AACrB,IAAAC,gBAAqB;AACrB,IAAAC,gBAAuC;",
+  "names": ["import_notes", "import_users", "import_asset"]
+}

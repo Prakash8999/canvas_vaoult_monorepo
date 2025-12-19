@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../../../../../../src/common/types/authInterface.ts"],
+  "sourcesContent": ["\r\nexport interface AuthenticatedUser {\r\n  userId: number;\r\n  email: string;\r\n  deviceId: string;\r\n  jti: string;\r\n  isEmailVerified: boolean;\r\n  name?: string;\r\n  profileUrl?: string;\r\n  isAdmin?: boolean;\r\n  iat?: number;                      \r\n  exp?: number;                      \r\n}"],
+  "mappings": ";;;;;;;;;;;;;;AAAA;AAAA;",
+  "names": []
+}
